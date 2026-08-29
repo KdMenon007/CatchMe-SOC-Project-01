@@ -1,0 +1,13 @@
+# CatchMe Incident Scenario
+
+CatchMe SOC detected abnormal authentication activity
+against an internal Windows environment.
+
+The investigation will determine:
+
+1. Whether authentication activity is malicious.
+2. Which account was targeted.
+3. Whether authentication succeeded.
+4. Whether the account was compromised.
+5. Whether post-authentication activity occurred.
+6. Whether lateral movement occurred.
