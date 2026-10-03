@@ -1,184 +1,99 @@
-# Attack Objectives
-
-## Project
-
-Project 03 — SSH Authorized-Key Backdoor
-
-## Primary Objective
-
-Simulate a controlled SSH persistence scenario in which an authenticated session discovers and modifies the user's `authorized_keys` file, establishes persistence, terminates the original session, and performs controlled re-entry.
+# CatchMe Linux SOC — Project 03
+# SSH Authorized-Key Backdoor Threat Hunt
 
 ## Attack Objectives
 
-### Objective 1 — Establish Controlled SSH Access
+### Project Objective
 
-Establish a controlled SSH session from Kali `192.168.1.10` to `soc-linux` `192.168.1.16`.
+Simulate a controlled SSH authorized-key persistence scenario against the CatchMe Linux SOC lab endpoint and validate the complete SOC workflow:
 
-Record:
+1. Introduce a controlled SSH public key into the target user's `authorized_keys`.
+2. Establish SSH access using the newly introduced key.
+3. Generate realistic endpoint authentication, file, process, and network telemetry.
+4. Hunt for evidence of unauthorized SSH key persistence.
+5. Detect the persistence activity using Elastic SIEM.
+6. Correlate authentication activity with changes to the SSH key file.
+7. Investigate the account, file, process, and network activity.
+8. Map confirmed activity to MITRE ATT&CK.
+9. Execute containment, eradication, remediation, and recovery.
+10. Preserve evidence and document the complete investigation.
 
-- Source IP
-- Destination IP
-- Username
-- Authentication method
-- Authentication result
-- Session creation
-- Session termination
-- Relevant timestamps
+## Fixed Lab Scope
 
-### Objective 2 — Perform Controlled Discovery
+| Component | Hostname | IP | Role |
+|---|---|---:|---|
+| Elastic SIEM | `elastic-siem` | `192.168.1.11` | Elasticsearch, Kibana, Fleet |
+| Linux Endpoint | `soc-linux` | `192.168.1.16` | Target endpoint |
+| Kali | `kiran` | `192.168.1.10` (`eth0`) | Controlled attacker |
+| Gateway | — | `192.168.1.1` | Network gateway |
 
-Perform limited discovery required to identify the host, user, SSH configuration, and SSH key location.
+The fixed attacker address for this project is `192.168.1.10`. The Kali `wlan0` address `192.168.1.9` is not used as the fixed attacker identity.
 
-### Objective 3 — Identify authorized_keys
+## Observed Pre-Attack State
 
-Identify the designated user's SSH authorization file.
+The following state was verified immediately before attack preparation:
 
-```text
-~/.ssh/authorized_keys
+- Target hostname: `soc-linux`
+- Target user: `socadmin`
+- User home: `/home/socadmin`
+- SSH service: active
+- SSH port: TCP/22
+- Password authentication: enabled
+- Public-key authentication: enabled
+- X11 forwarding: enabled
+- `PermitUserEnvironment`: disabled
+- `MaxAuthTries`: 6
+- `LoginGraceTime`: 120 seconds
+- Auditd: active and enabled
+- Auditd lost events: 0
+- Elastic Agent: healthy and running
+- Fleet: healthy and connected
+- `/home/socadmin/.ssh` permissions: `0700`
+- `authorized_keys` permissions: `0600`
+- `authorized_keys` owner: `socadmin:socadmin`
+- Existing `authorized_keys` entries: 1 legitimate `ssh-ed25519` key
+
+The existing legitimate key must remain untouched throughout the controlled attack.
+
+## Commands Used for Attack-Objective Baseline Validation
+
+```bash
+id
+whoami
+echo "$HOME"
+ls -la ~/.ssh
+sudo stat ~/.ssh/authorized_keys 2>/dev/null || true
+sudo sed -n '1,20p' ~/.ssh/authorized_keys 2>/dev/null || true
+
+sudo sshd -T | grep -E '^(permitrootlogin|pubkeyauthentication|passwordauthentication|x11forwarding|permituserenvironment|maxauthtries|logingracetime)'
+systemctl is-active ssh
+systemctl is-active auditd
+systemctl is-enabled auditd
+sudo auditctl -s | grep -E 'enabled|lost'
+systemctl is-active elastic-agent
+sudo elastic-agent status
+ss -lntp | grep ':22'
 ```
 
-### Objective 4 — Establish Controlled Persistence
+## Safety Objectives
 
-Modify the designated user's `authorized_keys` file using a lab-generated SSH public key.
+- Use only the isolated CatchMe lab systems.
+- Do not use external hosts.
+- Do not delete the legitimate baseline SSH key.
+- Do not perform destructive activity.
+- Do not escalate privileges unless explicitly required by the scenario.
+- Preserve original evidence before remediation.
+- Record actual observations rather than expected or fabricated results.
 
-The persistence mechanism must be:
+## Success Criteria
 
-- Lab-specific
-- Reversible
-- Limited to `soc-linux`
-- Documented before removal
+The attack phase is successful only when the controlled key-persistence scenario produces sufficient real telemetry to support:
 
-### Objective 5 — Preserve Persistence Evidence
-
-Capture relevant evidence before remediation, including:
-
-- File metadata
-- Ownership
-- Permissions
-- Modification time
-- Key entry
-- Auditd events
-- Process activity
-- SSH authentication telemetry
-- Elastic evidence
-
-### Objective 6 — Validate Persistence
-
-Terminate the initial session and perform controlled SSH re-entry using the lab-generated key.
-
-Persistence must be demonstrated through actual evidence.
-
-### Objective 7 — Correlate the Attack Chain
-
-Correlate:
-
-```text
-SSH Authentication
-    ↓
-Session
-    ↓
-Discovery
-    ↓
-authorized_keys Access
-    ↓
-File Modification
-    ↓
-Persistence
-    ↓
-Subsequent Authentication
-```
-
-### Objective 8 — Perform Initial Triage
-
-Evaluate:
-
-- Identity
-- Behavior
-- Source context
-- Traffic
-- Timeline
-
-### Objective 9 — Develop Threat-Hunting Queries
-
-Create KQL queries based on actual investigation questions and observed telemetry.
-
-### Objective 10 — Develop Detection Logic
-
-Develop Elastic detection logic for suspicious SSH persistence behavior based on actual telemetry.
-
-### Objective 11 — Evaluate Sigma
-
-Create or evaluate a Sigma rule when the observed telemetry supports portable detection.
-
-### Objective 12 — Evaluate YARA
-
-Determine whether a suitable artifact exists for YARA analysis.
-
-If no suitable artifact exists, document YARA as not applicable.
-
-### Objective 13 — Investigate the Endpoint
-
-Investigate:
-
-- Authentication
-- Processes
-- Shell activity
-- Files
-- `authorized_keys`
-- SSH configuration
-- Persistence
-- Network activity
-
-### Objective 14 — Determine Scope
-
-Determine affected:
-
-- Host
-- Account
-- Source
-- Persistence mechanism
-- Related sessions
-
-### Objective 15 — Map MITRE ATT&CK
-
-Map observed behavior to applicable ATT&CK techniques and sub-techniques.
-
-### Objective 16 — Map Cyber Kill Chain
-
-Map only applicable and evidence-supported stages.
-
-### Objective 17 — Contain
-
-Stop further unauthorized access while preserving relevant evidence.
-
-### Objective 18 — Eradicate
-
-Remove the controlled persistence mechanism and verify that no unauthorized key remains.
-
-### Objective 19 — Recover
-
-Return the endpoint to the intended lab baseline.
-
-### Objective 20 — Validate
-
-Verify that persistence is removed and legitimate monitoring and SSH functionality remain operational.
-
-## Safety Constraints
-
-Attack activity is limited to:
-
-| System | Role | IP |
-|---|---|---|
-| Kali | Attacker | `192.168.1.10` |
-| `soc-linux` | Linux endpoint | `192.168.1.16` |
-| `elastic-siem` | Elastic SIEM | `192.168.1.11` |
-
-Production and third-party systems are excluded.
-
-Destructive activity is excluded.
-
-## Completion Standard
-
-An objective is complete only when supported by actual evidence.
-
-Expected behavior must not be recorded as an observed result until the scenario has been executed.
+- authentication correlation,
+- SSH key-file investigation,
+- process and network investigation,
+- persistence identification,
+- detection validation,
+- MITRE ATT&CK mapping,
+- incident-response documentation,
+- evidence preservation and hashing.

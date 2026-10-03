@@ -1,209 +1,183 @@
-# Telemetry Requirements
+# CatchMe Linux SOC — Project 03
+# SSH Authorized-Key Backdoor Threat Hunt
 
-## Project
-
-Project 03 — SSH Authorized-Key Backdoor
+## Telemetry Requirements
 
 ## Purpose
 
-Define the telemetry required to detect, hunt, investigate, and validate SSH authorized-key persistence on the Linux endpoint.
+Define the telemetry required to investigate SSH authorized-key persistence before attack execution.
 
-## Primary Telemetry Objective
+## Required Telemetry Sources
 
-The investigation must provide enough telemetry to correlate:
+| Telemetry Source | Purpose | Required Investigation |
+|---|---|---|
+| SSH authentication logs | Identify SSH access | Successful/failed authentication |
+| Auditd | File/process/account activity | `authorized_keys` modification and execution context |
+| Elastic Agent | Endpoint collection | Process, file, host and security telemetry |
+| Elastic Security / Kibana | Central correlation | Search, detection and timeline analysis |
+| Network telemetry | Source/destination context | SSH source IP and connection timing |
+| Shell/process telemetry | Command execution context | Identify modification process where available |
+
+## Critical Artifact
+
+Primary persistence artifact:
 
 ```text
-SSH Authentication
-    ↓
-SSH Session
-    ↓
-Process / Shell Activity
-    ↓
-SSH Configuration Discovery
-    ↓
-authorized_keys Access
-    ↓
-authorized_keys Modification
-    ↓
-Persistence
-    ↓
-Subsequent SSH Authentication
+/home/socadmin/.ssh/authorized_keys
 ```
 
-## Authentication Telemetry
+The pre-attack baseline contains one legitimate `ssh-ed25519` entry.
 
-Required or preferred fields include:
+## Expected Telemetry Categories
 
-| Field | Purpose |
-|---|---|
-| `@timestamp` | Event timing |
-| `host.name` | Affected endpoint |
-| `user.name` | Account involved |
-| `source.ip` | Connection source |
-| `source.port` | Source connection port |
-| `destination.ip` | Destination endpoint |
-| `destination.port` | SSH destination port |
-| `process.name` | SSH-related process |
-| `event.action` | Authentication/session action |
-| `event.category` | Event classification |
-| `message` | Supporting authentication detail |
+### 1. Authentication
 
-Potential sources:
+Look for:
 
-- SSH authentication logs
-- System authentication logs
-- system journal
-- Elastic `system.auth` events
+- SSH login attempts.
+- Successful SSH authentication.
+- Failed SSH authentication.
+- Authentication method.
+- Username.
+- Source IP.
+- Source port.
+- Session start/end.
+- SSH process identity.
 
-## Process Telemetry
+### 2. File Activity
 
-Process telemetry should support identification of:
+Look for:
 
-- SSH daemon activity
-- Shell creation
-- Command execution
-- Parent process
-- Child process
-- Executing user
-- Process arguments
-- Process start time
+- Modification of `authorized_keys`.
+- File creation/deletion if applicable.
+- File size changes.
+- Ownership changes.
+- Permission changes.
+- Timestamp changes.
+- Related `.ssh` directory activity.
 
-The exact available fields will be verified during environment validation.
+### 3. Process Activity
 
-## File Telemetry
+Look for:
 
-File telemetry should support investigation of:
+- `sshd`.
+- Shell processes.
+- File-editing or key-management utilities.
+- Parent/child process relationships.
+- Command-line arguments where available.
+- User context.
 
-- `authorized_keys` access
-- `authorized_keys` modification
-- File path
-- File owner
-- File permissions
-- File timestamps
-- Process responsible for the activity
-- User responsible for the activity
+### 4. Account Activity
 
-Auditd telemetry is expected to be an important source for this investigation.
+Look for:
 
-## Network Telemetry
+- `socadmin` activity.
+- UID/GID context.
+- Privilege use.
+- Session creation.
+- Session termination.
 
-Network telemetry should support:
+### 5. Network Activity
 
-- Source IP
-- Destination IP
-- Source port
-- Destination port
-- SSH connection timing
-- Repeated SSH connections
-- Subsequent SSH re-entry
+Look for:
 
-The primary controlled relationship is:
+- Source IP `192.168.1.10`.
+- Destination `192.168.1.16`.
+- TCP/22 activity.
+- Connection timing relative to key modification.
+- Any unexpected additional network activity.
+
+## Baseline Telemetry State
+
+Verified before attack:
 
 ```text
-192.168.1.10
-     │
-     │ SSH / TCP 22
-     ▼
-192.168.1.16
-soc-linux
+Auditd:
+enabled 1
+lost 0
+
+Elastic Agent:
+HEALTHY / Running
+
+Fleet:
+HEALTHY / Connected
+
+SSH:
+active
+TCP/22 listening
 ```
 
-## Endpoint Health Requirements
+## Telemetry Correlation Model
 
-Before attack execution, verify:
+```mermaid
+flowchart TD
+    A["SSH Authentication"] --> E["Timeline Correlation"]
+    B["authorized_keys File Activity"] --> E
+    C["Process Execution"] --> E
+    D["Network Connection"] --> E
+    E --> F["Persistence Assessment"]
+    F --> G["Detection"]
+    G --> H["Investigation"]
+```
 
-| Component | Requirement |
-|---|---|
-| Elastic Agent | Active and healthy |
-| Auditd | Active |
-| Auditd enabled state | Enabled |
-| Auditd lost events | `0` |
-| SSH | Active |
-| SSH authentication | Enabled as required for scenario |
-| Hostname | `soc-linux` |
-| Endpoint IP | `192.168.1.16` |
-| Timezone | Asia/Kolkata / IST |
+## Minimum Evidence Requirements
 
-## Elastic Telemetry Requirements
+The attack should not be considered investigation-complete unless sufficient telemetry is available to establish, where supported:
 
-The Elastic environment should be able to receive and search endpoint telemetry from `soc-linux`.
+1. The baseline state of `authorized_keys`.
+2. The time of the persistence modification.
+3. The account responsible.
+4. The process responsible, if collected.
+5. The resulting key state.
+6. Subsequent SSH authentication behavior.
+7. Source IP correlation.
+8. Relevant Elastic Security events.
+9. Evidence supporting the final investigation conclusion.
 
-The following areas should be checked where available:
+## Telemetry Validation Commands
 
-- Authentication events
-- Process events
-- File events
-- Auditd events
-- Network events
-- Host metadata
-- User metadata
+On `soc-linux`:
 
-No telemetry source will be assumed to exist until verified.
+```bash
+systemctl is-active auditd
+systemctl is-enabled auditd
+sudo auditctl -s | grep -E 'enabled|lost'
+systemctl is-active elastic-agent
+sudo elastic-agent status
+ss -lntp | grep ':22'
+```
 
-## Required Correlation
+For SSH configuration context:
 
-The telemetry should allow investigation across these relationships:
+```bash
+sudo sshd -T | grep -E '^(permitrootlogin|pubkeyauthentication|passwordauthentication|x11forwarding|permituserenvironment|maxauthtries|logingracetime)'
+```
 
-```text
-Source IP
-    ↓
-User
-    ↓
-Authentication
-    ↓
-Session
-    ↓
-Process
-    ↓
-File
-    ↓
-authorized_keys
-    ↓
-Modification
-    ↓
-Subsequent Authentication
+For authorized-key baseline:
+
+```bash
+sudo stat ~/.ssh/authorized_keys 2>/dev/null || true
+sudo sed -n '1,20p' ~/.ssh/authorized_keys 2>/dev/null || true
 ```
 
 ## Telemetry Gaps
 
-Any missing telemetry must be documented during validation.
+If a required telemetry source is unavailable during execution:
 
-Potential gaps include:
+- record the gap,
+- do not fabricate the missing event,
+- use alternative available evidence only when appropriate,
+- document the limitation in the investigation findings.
 
-- Command-line visibility
-- Process ancestry
-- File access visibility
-- File modification attribution
-- Network session visibility
-- Exact SSH session correlation
+## Telemetry Success Criteria
 
-A telemetry gap must not be treated as evidence that an activity did not occur.
+Telemetry is considered ready when:
 
-## Evidence Requirements
-
-Relevant telemetry should be preserved through:
-
-- Elastic screenshots
-- Query results
-- Raw endpoint outputs
-- Authentication logs
-- Auditd evidence
-- File metadata
-- Process evidence
-
-Evidence will be stored under:
-
-```text
-11-Evidence/
-├── Raw/
-├── Sanitized/
-└── Hashes/
-```
-
-## Validation Requirement
-
-Telemetry requirements will be considered satisfied only after the actual environment has been verified and the required data sources have demonstrated usable events.
-
-## Project Constraint
-
-Only telemetry actually available from the CatchMe Linux SOC laboratory will be used for the final investigation.
+- Auditd is enabled.
+- Auditd reports `lost 0`.
+- Elastic Agent is healthy.
+- Fleet is connected.
+- SSH is active.
+- TCP/22 is listening.
+- The baseline `authorized_keys` state is documented.
+- The investigation can correlate file, process, authentication, account, and network activity where those data sources are available.
