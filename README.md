@@ -1,8 +1,3 @@
-Perfect. **Stage 0 — Part 2: Project 03 README Blueprint** is next.
-
-Because this README is the orientation document for the entire project, we should make it comprehensive **but keep all actual attack results/evidence as placeholders until execution**.
-
-````markdown
 # CatchMe Linux SOC — Project 03
 # SSH Authorized-Key Backdoor Threat Hunt
 
@@ -228,7 +223,7 @@ File Modification
 Session Termination
         ↓
 Subsequent SSH Authentication
-````
+```
 
 Actual timestamps will be populated only after execution.
 
