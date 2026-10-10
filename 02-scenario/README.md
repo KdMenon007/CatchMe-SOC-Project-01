@@ -9,7 +9,7 @@ Linux endpoint and how a SOC analyst can detect, investigate, and
 respond using endpoint telemetry and Elastic SIEM. The scenario focuses
 on `/home/socadmin/.ssh/authorized_keys`.
 
-``` mermaid
+```mermaid
 flowchart TD
     A["Controlled attack"] --> B["Endpoint telemetry"]
     B --> C["Threat hunting"]
@@ -161,7 +161,7 @@ timeline.
 
 ### Lab Architecture Diagram
 
-``` mermaid
+```mermaid
 flowchart LR
     K["Kali Linux<br/>kiran<br/>192.168.1.10"] -->|Controlled SSH activity| L["Linux endpoint<br/>soc-linux<br/>192.168.1.16"]
     L --> A["Native Auditd<br/>/var/log/audit/audit.log"]
@@ -176,7 +176,7 @@ flowchart LR
 
 #### Native Auditd
 
-``` mermaid
+```mermaid
 flowchart TD
     A["Linux activity"] --> B["Kernel audit subsystem"]
     B --> C["Native auditd"]
@@ -188,7 +188,7 @@ flowchart TD
 
 #### Elastic Defend
 
-``` mermaid
+```mermaid
 flowchart TD
     A["Process, file and network activity"] --> B["Elastic Defend endpoint integration"]
     B --> C["Elastic Agent"]
@@ -243,7 +243,7 @@ The hunt follows an evidence-first sequence.
 
 ### Threat-Hunting Flowchart
 
-``` mermaid
+```mermaid
 flowchart TD
     A["Define hypothesis"] --> B["Set investigation time window"]
     B --> C["Search SSH authentication"]
@@ -329,7 +329,7 @@ alert.
 
 ### Detection Validation Flowchart
 
-``` mermaid
+```mermaid
 flowchart TD
     A["Controlled authorized-key activity"] --> B["Auditd and endpoint events"]
     B --> C["Run detection rule"]
@@ -374,7 +374,7 @@ inconclusive results.
 
 ### Evidence Correlation Diagram
 
-``` mermaid
+```mermaid
 flowchart LR
     A["SSH authentication events"] --> T["Timeline correlation"]
     B["Process execution events"] --> T
@@ -433,7 +433,7 @@ claim every phase occurred.
 
 ### Investigation Sequence Diagram
 
-``` mermaid
+```mermaid
 sequenceDiagram
     participant K as Kali
     participant L as soc-linux
@@ -455,7 +455,7 @@ was observed.
 
 ### Incident Response Flowchart
 
-``` mermaid
+```mermaid
 flowchart TD
     A["Identify suspicious activity"] --> B["Preserve relevant evidence"]
     B --> C["Assess scope and access"]
@@ -510,7 +510,7 @@ before documentation is finalized.
 
 ### Evidence Workflow
 
-``` mermaid
+```mermaid
 flowchart LR
     A["Execute"] --> B["Observe"]
     B --> C["Capture"]
