@@ -11,14 +11,14 @@ on `/home/socadmin/.ssh/authorized_keys`.
 
 ```mermaid
 flowchart TD
-    A["Controlled attack"] --> B["Endpoint telemetry"]
-    B --> C["Threat hunting"]
-    C --> D["Detection"]
-    D --> E["Investigation"]
-    E --> F["MITRE ATT&CK mapping"]
-    F --> G["Incident response"]
-    G --> H["Containment and eradication"]
-    H --> I["Recovery and validation"]
+    A[Controlled attack] --> B[Endpoint telemetry]
+    B --> C[Threat hunting]
+    C --> D[Detection]
+    D --> E[Investigation]
+    E --> F[MITRE ATT&CK mapping]
+    F --> G[Incident response]
+    G --> H[Containment and eradication]
+    H --> I[Recovery and validation]
 ```
 
 The purpose is to determine whether relevant activity produces
@@ -163,13 +163,13 @@ timeline.
 
 ```mermaid
 flowchart LR
-    K["Kali Linux<br/>kiran<br/>192.168.1.10"] -->|Controlled SSH activity| L["Linux endpoint<br/>soc-linux<br/>192.168.1.16"]
-    L --> A["Native Auditd<br/>/var/log/audit/audit.log"]
-    L --> D["Elastic Defend<br/>Endpoint telemetry"]
-    A --> EA["Elastic Agent"]
+    K[Kali - 192.168.1.10] --> L[soc-linux - 192.168.1.16]
+    L --> A[Native Auditd]
+    L --> D[Elastic Defend]
+    A --> EA[Elastic Agent]
     D --> EA
-    EA --> E["Elastic SIEM<br/>elastic-siem<br/>192.168.1.11"]
-    E --> H["Kibana<br/>Hunting and detection"]
+    EA --> E[Elastic SIEM - 192.168.1.11]
+    E --> H[Kibana]
 ```
 
 ### Telemetry Architecture
@@ -178,22 +178,22 @@ flowchart LR
 
 ```mermaid
 flowchart TD
-    A["Linux activity"] --> B["Kernel audit subsystem"]
-    B --> C["Native auditd"]
-    C --> D["/var/log/audit/audit.log"]
-    D --> E["Elastic Agent logfile integration"]
-    E --> F["Elasticsearch"]
-    F --> G["Kibana investigation"]
+    A[Linux activity] --> B[Kernel audit subsystem]
+    B --> C[Native auditd]
+    C --> D[Audit log file]
+    D --> E[Elastic Agent logfile integration]
+    E --> F[Elasticsearch]
+    F --> G[Kibana investigation]
 ```
 
 #### Elastic Defend
 
 ```mermaid
 flowchart TD
-    A["Process, file and network activity"] --> B["Elastic Defend endpoint integration"]
-    B --> C["Elastic Agent"]
-    C --> D["Elasticsearch"]
-    D --> E["Kibana hunting and detection"]
+    A[Process file and network activity] --> B[Elastic Defend integration]
+    B --> C[Elastic Agent]
+    C --> D[Elasticsearch]
+    D --> E[Kibana hunting and detection]
 ```
 
 These are complementary telemetry paths. Validate each source and its
@@ -245,15 +245,15 @@ The hunt follows an evidence-first sequence.
 
 ```mermaid
 flowchart TD
-    A["Define hypothesis"] --> B["Set investigation time window"]
-    B --> C["Search SSH authentication"]
-    C --> D["Investigate process activity"]
-    D --> E["Search authorized_keys file events"]
-    E --> F["Correlate host, account, process and source IP"]
-    F --> G["Check subsequent public-key authentication"]
-    G --> H["Validate detection and alerts"]
-    H --> I["Document confirmed findings and gaps"]
-    I --> J["Support response and recovery"]
+    A[Define hypothesis] --> B[Set investigation time window]
+    B --> C[Search SSH authentication]
+    C --> D[Investigate process activity]
+    D --> E[Search authorized keys events]
+    E --> F[Correlate host account process and source IP]
+    F --> G[Check public key authentication]
+    G --> H[Validate detection and alerts]
+    H --> I[Document findings and gaps]
+    I --> J[Support response and recovery]
 ```
 
 ### Initial Triage
@@ -331,14 +331,14 @@ alert.
 
 ```mermaid
 flowchart TD
-    A["Controlled authorized-key activity"] --> B["Auditd and endpoint events"]
-    B --> C["Run detection rule"]
-    C --> D{"Relevant alert generated?"}
-    D -->|Yes| E["Inspect alert and related events"]
-    D -->|No| F["Check time range, fields, rule and telemetry"]
-    E --> G["Assess relevance and duplicate alerts"]
-    F --> H["Document result and limitation"]
-    G --> I["Record validated detection outcome"]
+    A[Controlled authorized key activity] --> B[Auditd and endpoint events]
+    B --> C[Run detection rule]
+    C --> D{Relevant alert generated?}
+    D -->|Yes| E[Inspect alert and related events]
+    D -->|No| F[Check time range fields rule and telemetry]
+    E --> G[Assess relevance and duplicate alerts]
+    F --> H[Document result and limitation]
+    G --> I[Record validated outcome]
     H --> I
 ```
 
@@ -376,12 +376,12 @@ inconclusive results.
 
 ```mermaid
 flowchart LR
-    A["SSH authentication events"] --> T["Timeline correlation"]
-    B["Process execution events"] --> T
-    C["authorized_keys file events"] --> T
-    D["Network and source IP events"] --> T
-    E["Detection alerts"] --> T
-    T --> F["Evidence-backed assessment"]
+    A[SSH authentication events] --> T[Timeline correlation]
+    B[Process execution events] --> T
+    C[Authorized keys file events] --> T
+    D[Network and source IP events] --> T
+    E[Detection alerts] --> T
+    T --> F[Evidence backed assessment]
 ```
 
 ## MITRE ATT&CK Mapping
@@ -436,13 +436,13 @@ claim every phase occurred.
 ```mermaid
 sequenceDiagram
     participant K as Kali
-    participant L as soc-linux
-    participant A as Auditd / Defend
+    participant L as Linux endpoint
+    participant A as Auditd and Defend
     participant E as Elastic SIEM
-    participant S as SOC Analyst
+    participant S as SOC analyst
     K->>L: Controlled SSH activity
     L->>A: Generate endpoint telemetry
-    A->>E: Send collected events
+    A->>E: Send events
     S->>E: Search authentication and file activity
     E-->>S: Return matching events and alerts
     S->>S: Correlate timeline and assess evidence
@@ -457,15 +457,15 @@ was observed.
 
 ```mermaid
 flowchart TD
-    A["Identify suspicious activity"] --> B["Preserve relevant evidence"]
-    B --> C["Assess scope and access"]
-    C --> D["Contain where appropriate"]
-    D --> E["Remove unauthorized test key"]
-    E --> F["Verify legitimate keys and access"]
-    F --> G["Validate monitoring and telemetry"]
-    G --> H{"Recovery checks pass?"}
-    H -->|Yes| I["Document recovery and close findings"]
-    H -->|No| J["Investigate remaining issue"]
+    A[Identify suspicious activity] --> B[Preserve evidence]
+    B --> C[Assess scope and access]
+    C --> D[Contain where appropriate]
+    D --> E[Remove unauthorized test key]
+    E --> F[Verify legitimate keys and access]
+    F --> G[Validate monitoring and telemetry]
+    G --> H{Recovery checks pass?}
+    H -->|Yes| I[Document recovery]
+    H -->|No| J[Investigate remaining issue]
     J --> C
 ```
 
@@ -512,12 +512,12 @@ before documentation is finalized.
 
 ```mermaid
 flowchart LR
-    A["Execute"] --> B["Observe"]
-    B --> C["Capture"]
-    C --> D["Validate"]
-    D --> E["Sanitize"]
-    E --> F["Hash"]
-    F --> G["Document"]
+    A[Execute] --> B[Observe]
+    B --> C[Capture]
+    C --> D[Validate]
+    D --> E[Sanitize]
+    E --> F[Hash]
+    F --> G[Document]
 ```
 
 ### Screenshot Categories
