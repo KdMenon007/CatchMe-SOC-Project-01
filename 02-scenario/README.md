@@ -9,17 +9,9 @@ Linux endpoint and how a SOC analyst can detect, investigate, and
 respond using endpoint telemetry and Elastic SIEM. The scenario focuses
 on `/home/socadmin/.ssh/authorized_keys`.
 
-```mermaid
-flowchart TD
-    A[Controlled attack] --> B[Endpoint telemetry]
-    B --> C[Threat hunting]
-    C --> D[Detection]
-    D --> E[Investigation]
-    E --> F[MITRE ATT&CK mapping]
-    F --> G[Incident response]
-    G --> H[Containment and eradication]
-    H --> I[Recovery and validation]
-```
+![Project workflow](08-diagrams/project-workflow.svg)
+
+<sub>Editable Mermaid source is replaced here by a portable SVG image so the diagram remains visible on GitHub even when its Mermaid renderer fails.</sub>
 
 The purpose is to determine whether relevant activity produces
 observable telemetry, whether it can be detected and investigated, and
@@ -161,40 +153,23 @@ timeline.
 
 ### Lab Architecture Diagram
 
-```mermaid
-flowchart LR
-    K[Kali - 192.168.1.10] --> L[soc-linux - 192.168.1.16]
-    L --> A[Native Auditd]
-    L --> D[Elastic Defend]
-    A --> EA[Elastic Agent]
-    D --> EA
-    EA --> E[Elastic SIEM - 192.168.1.11]
-    E --> H[Kibana]
-```
+![Lab architecture](08-diagrams/lab-architecture.svg)
+
+<sub>Editable Mermaid source is replaced here by a portable SVG image so the diagram remains visible on GitHub even when its Mermaid renderer fails.</sub>
 
 ### Telemetry Architecture
 
 #### Native Auditd
 
-```mermaid
-flowchart TD
-    A[Linux activity] --> B[Kernel audit subsystem]
-    B --> C[Native auditd]
-    C --> D[Audit log file]
-    D --> E[Elastic Agent logfile integration]
-    E --> F[Elasticsearch]
-    F --> G[Kibana investigation]
-```
+![Native Auditd telemetry path](08-diagrams/native-auditd.svg)
+
+<sub>Editable Mermaid source is replaced here by a portable SVG image so the diagram remains visible on GitHub even when its Mermaid renderer fails.</sub>
 
 #### Elastic Defend
 
-```mermaid
-flowchart TD
-    A[Process file and network activity] --> B[Elastic Defend integration]
-    B --> C[Elastic Agent]
-    C --> D[Elasticsearch]
-    D --> E[Kibana hunting and detection]
-```
+![Elastic Defend telemetry path](08-diagrams/elastic-defend.svg)
+
+<sub>Editable Mermaid source is replaced here by a portable SVG image so the diagram remains visible on GitHub even when its Mermaid renderer fails.</sub>
 
 These are complementary telemetry paths. Validate each source and its
 available fields independently before correlating events.
@@ -243,18 +218,9 @@ The hunt follows an evidence-first sequence.
 
 ### Threat-Hunting Flowchart
 
-```mermaid
-flowchart TD
-    A[Define hypothesis] --> B[Set investigation time window]
-    B --> C[Search SSH authentication]
-    C --> D[Investigate process activity]
-    D --> E[Search authorized keys events]
-    E --> F[Correlate host account process and source IP]
-    F --> G[Check public key authentication]
-    G --> H[Validate detection and alerts]
-    H --> I[Document findings and gaps]
-    I --> J[Support response and recovery]
-```
+![Threat-hunting workflow](08-diagrams/threat-hunting.svg)
+
+<sub>Editable Mermaid source is replaced here by a portable SVG image so the diagram remains visible on GitHub even when its Mermaid renderer fails.</sub>
 
 ### Initial Triage
 
@@ -329,18 +295,9 @@ alert.
 
 ### Detection Validation Flowchart
 
-```mermaid
-flowchart TD
-    A[Controlled authorized key activity] --> B[Auditd and endpoint events]
-    B --> C[Run detection rule]
-    C --> D{Relevant alert generated?}
-    D -->|Yes| E[Inspect alert and related events]
-    D -->|No| F[Check time range fields rule and telemetry]
-    E --> G[Assess relevance and duplicate alerts]
-    F --> H[Document result and limitation]
-    G --> I[Record validated outcome]
-    H --> I
-```
+![Detection validation flowchart](08-diagrams/detection-validation.svg)
+
+<sub>Editable Mermaid source is replaced here by a portable SVG image so the diagram remains visible on GitHub even when its Mermaid renderer fails.</sub>
 
 ### Validation Requirements
 
@@ -374,15 +331,9 @@ inconclusive results.
 
 ### Evidence Correlation Diagram
 
-```mermaid
-flowchart LR
-    A[SSH authentication events] --> T[Timeline correlation]
-    B[Process execution events] --> T
-    C[Authorized keys file events] --> T
-    D[Network and source IP events] --> T
-    E[Detection alerts] --> T
-    T --> F[Evidence backed assessment]
-```
+![Evidence correlation](08-diagrams/evidence-correlation.svg)
+
+<sub>Editable Mermaid source is replaced here by a portable SVG image so the diagram remains visible on GitHub even when its Mermaid renderer fails.</sub>
 
 ## MITRE ATT&CK Mapping
 
@@ -433,20 +384,9 @@ claim every phase occurred.
 
 ### Investigation Sequence Diagram
 
-```mermaid
-sequenceDiagram
-    participant K as Kali
-    participant L as Linux endpoint
-    participant A as Auditd and Defend
-    participant E as Elastic SIEM
-    participant S as SOC analyst
-    K->>L: Controlled SSH activity
-    L->>A: Generate endpoint telemetry
-    A->>E: Send events
-    S->>E: Search authentication and file activity
-    E-->>S: Return matching events and alerts
-    S->>S: Correlate timeline and assess evidence
-```
+![Investigation sequence](08-diagrams/sequence-workflow.svg)
+
+<sub>Editable Mermaid source is replaced here by a portable SVG image so the diagram remains visible on GitHub even when its Mermaid renderer fails.</sub>
 
 This diagram describes the intended workflow, not proof that every event
 was observed.
@@ -455,19 +395,9 @@ was observed.
 
 ### Incident Response Flowchart
 
-```mermaid
-flowchart TD
-    A[Identify suspicious activity] --> B[Preserve evidence]
-    B --> C[Assess scope and access]
-    C --> D[Contain where appropriate]
-    D --> E[Remove unauthorized test key]
-    E --> F[Verify legitimate keys and access]
-    F --> G[Validate monitoring and telemetry]
-    G --> H{Recovery checks pass?}
-    H -->|Yes| I[Document recovery]
-    H -->|No| J[Investigate remaining issue]
-    J --> C
-```
+![Incident response flowchart](08-diagrams/incident-response.svg)
+
+<sub>Editable Mermaid source is replaced here by a portable SVG image so the diagram remains visible on GitHub even when its Mermaid renderer fails.</sub>
 
 ### Identification
 
@@ -510,15 +440,9 @@ before documentation is finalized.
 
 ### Evidence Workflow
 
-```mermaid
-flowchart LR
-    A[Execute] --> B[Observe]
-    B --> C[Capture]
-    C --> D[Validate]
-    D --> E[Sanitize]
-    E --> F[Hash]
-    F --> G[Document]
-```
+![Evidence workflow](08-diagrams/evidence-workflow.svg)
+
+<sub>Editable Mermaid source is replaced here by a portable SVG image so the diagram remains visible on GitHub even when its Mermaid renderer fails.</sub>
 
 ### Screenshot Categories
 
