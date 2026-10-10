@@ -9,6 +9,8 @@ A defensive lab case study investigating SSH authentication, post-access discove
 ![SIEM](https://img.shields.io/badge/SIEM-Elastic-005571)
 ![ATT&CK](https://img.shields.io/badge/MITRE%20ATT%26CK-T1098.004-red)
 
+> **Rendering note:** This README includes GitHub-compatible Mermaid diagrams. Because rendering has previously failed in the target repository, key workflows also have plain-text fallbacks. If Mermaid fails, the surrounding content remains readable.
+
 ---
 
 ## Contents
@@ -69,39 +71,38 @@ The case study follows a defensive SOC workflow: establish a hypothesis, define 
 
 **Addressing constraint:** use `192.168.1.10` as the Kali lab address. Do not substitute the Kali Wi-Fi address `192.168.1.9` in this project's attack narrative or source-IP queries. Lab boot order is Elastic SIEM, Linux endpoint, then Kali.
 
-### Telemetry data flow
+### Telemetry architecture
+
+```mermaid
+flowchart LR
+    A["Kali attacker<br/>kiran<br/>192.168.1.10"]
+    B["Linux endpoint<br/>soc-linux<br/>192.168.1.16"]
+    C["Native auditd<br/>/var/log/audit/audit.log"]
+    D["Elastic Agent<br/>auditd logfile + Defend"]
+    E["Elastic SIEM<br/>elastic-siem<br/>192.168.1.11"]
+    F["SOC analyst<br/>Discover / KQL / alerts"]
+    A -->|"SSH activity"| B
+    B --> C
+    B --> D
+    C --> D
+    D -->|"Audit and endpoint events"| E
+    E --> F
+```
+
+**Text fallback**
 
 ```text
-+-----------------------+       SSH activity       +-------------------------+
-| Kali attacker         | -----------------------> | Linux endpoint           |
-| kiran                 |                          | soc-linux                |
-| 192.168.1.10           |                          | 192.168.1.16              |
-+-----------------------+                          +------------+------------+
-                                                               |
-                                             +-----------------+-----------------+
-                                             |                                   |
-                                             v                                   v
-                                  +----------------------+            +----------------------+
-                                  | Native auditd        |            | Elastic Defend       |
-                                  | /var/log/audit/      |            | process/file/network |
-                                  | audit.log            |            | telemetry            |
-                                  +----------+-----------+            +----------+-----------+
-                                             |                                   |
-                                             +-----------------+-----------------+
-                                                               |
-                                                               v
-                                                    +----------------------+
-                                                    | Elastic SIEM         |
-                                                    | elastic-siem          |
-                                                    | 192.168.1.11          |
-                                                    +----------+-----------+
-                                                               |
-                                                               v
-                                                    +----------------------+
-                                                    | SOC analyst          |
-                                                    | Discover / KQL /     |
-                                                    | detection alerts     |
-                                                    +----------------------+
+Kali (192.168.1.10) --SSH--> soc-linux (192.168.1.16)
+                                  |              |
+                               auditd       Elastic Defend
+                                  \              /
+                                   Elastic Agent
+                                         |
+                                         v
+                              elastic-siem (192.168.1.11)
+                                         |
+                                         v
+                               SOC analyst / Kibana
 ```
 
 ## 4. Scope, Authorization and Safety
@@ -119,27 +120,19 @@ This is a controlled defensive lab and portfolio exercise. Run tests only on sys
 
 The scenario models an actor who obtains access to a Linux account and attempts to preserve access by adding an SSH public key to that account's `authorized_keys` file. A later successful public-key login may connect the persistence action to re-entry.
 
-```text
-SSH password attempts
-        |
-        v
-Initial SSH access
-        |
-        v
-Post-login discovery
-        |
-        v
-Modify authorized_keys
-        |
-        v
-Public-key re-entry
-        |
-        v
-SOC correlation and investigation
-        |
-        v
-Containment, eradication, and recovery
+```mermaid
+flowchart TD
+    A["SSH password attempts"] --> B["Initial SSH access"]
+    B --> C["Post-login discovery"]
+    C --> D["Modify authorized_keys"]
+    D --> E["Public-key re-entry"]
+    E --> F["SOC correlation and investigation"]
+    F --> G["Containment, eradication, recovery"]
+    style D fill:#fce8e6,stroke:#b3261e,color:#202124
+    style E fill:#fce8e6,stroke:#b3261e,color:#202124
 ```
+
+**Text fallback:** SSH attempts → initial access → discovery → authorized-key modification → possible public-key re-entry → SOC investigation → response and recovery.
 
 The sequence is a scenario model. Mark a stage as observed only when supporting evidence has been reviewed.
 
@@ -170,42 +163,17 @@ A query returning no results is not proof of absence. Check the time picker, sel
 7. Review endpoint process, file, network, and sudo activity.
 8. Record query, time window, result count, evidence reference, confidence, and gaps.
 
-```text
-+---------------------+
-| Scope host and time |
-+----------+----------+
-           |
-           v
-+---------------------+
-| Search SSH activity |
-+----------+----------+
-           |
-           v
-+------------------------------+
-| Separate failures and success|
-+--------------+---------------+
-               |
-               v
-+------------------------------+
-| Inspect authorized_keys      |
-| auditd / endpoint file events|
-+--------------+---------------+
-               |
-               v
-+------------------------------+
-| Correlate public-key re-entry|
-+--------------+---------------+
-               |
-               v
-+------------------------------+
-| Review process and sudo      |
-+--------------+---------------+
-               |
-               v
-+------------------------------+
-| Record evidence and gaps     |
-+------------------------------+
+```mermaid
+flowchart TD
+    A["Scope host and time"] --> B["Search SSH activity"]
+    B --> C["Separate failures and success"]
+    C --> D["Inspect authorized_keys events"]
+    D --> E["Correlate public-key re-entry"]
+    E --> F["Review process and sudo context"]
+    F --> G["Record evidence and gaps"]
 ```
+
+**Text fallback:** Scope → Search SSH → Separate failure/success → Inspect authorized-key events → Correlate re-entry → Review process/sudo → Document evidence and gaps.
 
 ## 8. Expected Attack Chain
 
@@ -245,11 +213,18 @@ Recorded lab architecture: kernel audit → native `auditd` → `/var/log/audit/
 7. **Preserve:** record query, time window, result count, event timestamp, and evidence reference.
 8. **Report:** state conclusion, limitations, and next action.
 
-```text
-Scope -> Discover -> Correlate -> Enrich
-  -> Test alternatives -> Assess confidence
-  -> Preserve evidence -> Report
+```mermaid
+flowchart LR
+    A["Scope"] --> B["Discover"]
+    B --> C["Correlate"]
+    C --> D["Enrich"]
+    D --> E["Test alternatives"]
+    E --> F["Assess confidence"]
+    F --> G["Preserve evidence"]
+    G --> H["Report"]
 ```
+
+**Text fallback:** Scope → Discover → Correlate → Enrich → Test alternatives → Assess confidence → Preserve evidence → Report.
 
 ## 11. KQL Investigation Strategy
 
@@ -345,24 +320,16 @@ event.action:(ran-command OR was-authorized OR started-session OR ended-session 
 
 ### Query workflow
 
-```text
-Select data view and time range
-             |
-             v
-Run broad SSH query
-             |
-             v
-Inspect actual event fields
-             |
-             v
-Narrow by source, user, and method
-             |
-             v
-Search authorized_keys activity
-             |
-             v
-Correlate and preserve evidence
+```mermaid
+flowchart TD
+    A["Select data view and time range"] --> B["Run broad SSH query"]
+    B --> C["Inspect actual event fields"]
+    C --> D["Narrow by source, user, and method"]
+    D --> E["Search authorized_keys activity"]
+    E --> F["Correlate and preserve evidence"]
 ```
+
+**Text fallback:** Select data view/time → broad SSH query → inspect fields → narrow scope → search authorized_keys → correlate and preserve.
 
 ## 12. Detection Strategy
 
@@ -390,25 +357,18 @@ The lab previously reported five high-severity alerts from one controlled file o
 
 ### Detection logic
 
-```text
-Auditd / endpoint event
-          |
-          v
-Authorized-key activity?
-   | No                | Yes
-   v                   v
-Continue monitoring  Inspect raw records
-                         |
-                         v
-                 Correlate actor, path,
-                 source, and timestamp
-                         |
-                         v
-                 Related public-key login?
-                    | Yes       | No/unknown
-                    v           v
-                Escalate     Continue hunt
+```mermaid
+flowchart TD
+    A["Auditd / endpoint event"] --> B{"Authorized-key activity?"}
+    B -->|No| C["Continue monitoring"]
+    B -->|Yes| D["Inspect raw records and alert context"]
+    D --> E["Correlate actor, path, source, and time"]
+    E --> F{"Related public-key login?"}
+    F -->|Yes| G["Escalate suspected persistence"]
+    F -->|No or unknown| H["Continue investigation"]
 ```
+
+**Text fallback:** Event → check authorized-key activity → inspect raw records → correlate actor/path/source/time → assess related public-key login → escalate or continue hunting.
 
 ## 13. Sigma and YARA Strategy
 
@@ -416,7 +376,7 @@ The project tree contains Sigma and YARA rule files with analysis documents. The
 
 ### Sigma
 
-Review log-source assumptions, field names, event selection, exclusions, and conversion behavior. Compare the resulting detection behavior with the Elastic KQL rule and record actual test results.
+Review log-source assumptions, field names, event selection, exclusions, and conversion behavior. Compare resulting behavior with the Elastic KQL rule and record actual test results.
 
 ### YARA
 
@@ -486,21 +446,15 @@ For each finding, document:
 | [T1057 — Process Discovery](https://attack.mitre.org/techniques/T1057/) | Process enumeration | Endpoint process or audit evidence |
 | [T1098.004 — SSH Authorized Keys](https://attack.mitre.org/techniques/T1098/004/) | SSH public-key persistence | Authorized-key file activity and supporting context |
 
-```text
-T1110 — Brute Force
-          |
-          v
-T1021.004 — SSH
-          |
-          v
-T1082 / T1033 / T1057 — Discovery
-          |
-          v
-T1098.004 — SSH Authorized Keys
-          |
-          v
-T1021.004 — Potential key-based re-entry
+```mermaid
+flowchart TD
+    A["T1110<br/>Brute Force"] --> B["T1021.004<br/>SSH"]
+    B --> C["T1082 / T1033 / T1057<br/>Discovery"]
+    C --> D["T1098.004<br/>SSH Authorized Keys"]
+    D --> E["T1021.004<br/>Potential key-based re-entry"]
 ```
+
+**Text fallback:** T1110 → T1021.004 → discovery (T1082/T1033/T1057) → T1098.004 → potential key-based re-entry.
 
 Technique mapping should reflect observed behavior, not only the planned scenario.
 
@@ -516,24 +470,16 @@ Technique mapping should reflect observed behavior, not only the planned scenari
 | Command and Control | SSH may provide a remote interactive channel | Session evidence; do not infer additional C2 |
 | Actions on Objectives | Post-access discovery or privilege activity | Process/audit/sudo evidence |
 
-```text
-Reconnaissance (if observed)
-             |
-             v
-Delivery: SSH
-             |
-             v
-Access established
-             |
-             v
-Installation: authorized key
-             |
-             v
-Remote re-entry
-             |
-             v
-Post-access activity
+```mermaid
+flowchart LR
+    A["Reconnaissance<br/>(if observed)"] --> B["Delivery: SSH"]
+    B --> C["Access established"]
+    C --> D["Installation: authorized key"]
+    D --> E["Remote re-entry"]
+    E --> F["Post-access activity"]
 ```
+
+**Text fallback:** Reconnaissance (if observed) → SSH delivery → access → authorized-key persistence → remote re-entry → post-access activity.
 
 The Cyber Kill Chain is a conceptual lens. Not every stage is necessarily present or independently observable.
 
@@ -570,27 +516,20 @@ The Cyber Kill Chain is a conceptual lens. Not every stage is necessarily presen
 - Use only approved controlled tests.
 - Record actual results; do not claim successful recovery until verified.
 
-```text
-Triage and scope
-       |
-       v
-Preserve evidence
-       |
-       v
-Contain suspicious access
-       |
-       v
-Remove confirmed unauthorized key
-       |
-       v
-Review credentials and other persistence
-       |
-       v
-Validate legitimate access and telemetry
-       |
-       v
-Document recovery or continue remediation
+```mermaid
+flowchart TD
+    A["Triage and scope"] --> B["Preserve evidence"]
+    B --> C["Contain suspicious access"]
+    C --> D["Remove confirmed unauthorized key"]
+    D --> E["Review credentials and other persistence"]
+    E --> F["Validate legitimate access and telemetry"]
+    F --> G{"Validation passed?"}
+    G -->|Yes| H["Document recovery and lessons"]
+    G -->|No| I["Continue remediation"]
+    I --> F
 ```
+
+**Text fallback:** Triage → preserve evidence → contain → remove confirmed unauthorized key → review credentials and persistence → validate access and telemetry → document recovery or continue remediation.
 
 ## 18. Evidence and Screenshot Strategy
 
@@ -647,36 +586,20 @@ Earlier notes record this sequence. Reconcile it with screenshots and original e
 
 ### End-to-end SOC workflow
 
-```text
-Environment and baseline
-          |
-          v
-Controlled attack
-          |
-          v
-Collect auditd and endpoint telemetry
-          |
-          v
-Threat hunt and correlate
-          |
-          v
-Evaluate detection
-          |
-          v
-Investigate and map ATT&CK
-          |
-          v
-Contain and eradicate
-          |
-          v
-Recover and validate
-          |
-          v
-Sanitize evidence, hash, and QA
-          |
-          v
-Publish verified report
+```mermaid
+flowchart TD
+    A["Environment and baseline"] --> B["Controlled attack"]
+    B --> C["Collect auditd and endpoint telemetry"]
+    C --> D["Threat hunt and correlate"]
+    D --> E["Evaluate detection"]
+    E --> F["Investigate and map ATT&CK"]
+    F --> G["Contain and eradicate"]
+    G --> H["Recover and validate"]
+    H --> I["Sanitize evidence, hash, and QA"]
+    I --> J["Publish verified report"]
 ```
+
+**Text fallback:** Environment/baseline → controlled attack → telemetry collection → hunting/correlation → detection evaluation → investigation/mapping → containment/eradication → recovery/validation → evidence sanitization/hash/QA → publication.
 
 ### Evidence-to-claim rule
 
@@ -706,7 +629,7 @@ This README is a consolidated project guide; it does not certify that every phas
 
 | Workstream | Current reporting position |
 |---|---|
-| README | Rebuilt with 20 numbered sections and GitHub-safe text diagrams |
+| README | Rebuilt with 20 numbered sections, Mermaid diagrams, and text fallbacks |
 | Lab architecture | Fixed mapping documented |
 | Attack | Screenshots exist; verify contents and reconcile historical notes |
 | Telemetry | Screenshots exist; correlate with actual events where available |
