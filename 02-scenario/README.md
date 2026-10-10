@@ -4,44 +4,33 @@
 
 ## Project Overview
 
-This project investigates how unauthorized SSH public-key persistence
-may be established on a Linux endpoint and how a SOC analyst can detect,
-investigate, and respond using endpoint telemetry and Elastic SIEM.
+This project investigates unauthorized SSH public-key persistence on a
+Linux endpoint and how a SOC analyst can detect, investigate, and
+respond using endpoint telemetry and Elastic SIEM. The scenario focuses
+on `/home/socadmin/.ssh/authorized_keys`.
 
-The scenario focuses on `/home/socadmin/.ssh/authorized_keys`. The
-project follows an evidence-driven workflow:
-
-``` text
-Attack
-  ↓
-Endpoint Telemetry
-  ↓
-Threat Hunting
-  ↓
-Detection
-  ↓
-Investigation
-  ↓
-MITRE ATT&CK Mapping
-  ↓
-Incident Response
-  ↓
-Containment and Eradication
-  ↓
-Recovery and Validation
+``` mermaid
+flowchart TD
+    A["Controlled attack"] --> B["Endpoint telemetry"]
+    B --> C["Threat hunting"]
+    C --> D["Detection"]
+    D --> E["Investigation"]
+    E --> F["MITRE ATT&CK mapping"]
+    F --> G["Incident response"]
+    G --> H["Containment and eradication"]
+    H --> I["Recovery and validation"]
 ```
 
-The purpose is not simply to demonstrate an attack. It is to establish
-whether relevant activity produces observable telemetry, whether the
-activity can be detected and investigated, and whether conclusions are
-supported by real evidence.
+The purpose is to determine whether relevant activity produces
+observable telemetry, whether it can be detected and investigated, and
+whether conclusions are supported by real evidence.
 
 ## Project Objectives
 
 -   Investigate SSH authentication activity against the designated Linux
     endpoint.
 -   Examine controlled post-compromise discovery activity.
--   Identify and investigate changes to SSH authorized-key files.
+-   Investigate changes to SSH authorized-key files.
 -   Validate Linux Auditd and Elastic Defend telemetry.
 -   Build and validate KQL queries against actual Elastic events.
 -   Assess the configured Elastic Security detection.
@@ -58,14 +47,11 @@ access to a Linux endpoint. The analyst must determine whether an
 account was accessed, whether discovery activity followed, and whether
 an SSH authorized-key file was modified to enable continued access.
 
-SSH public-key authentication is a legitimate administration mechanism.
-However, an unauthorized key added to `authorized_keys` may allow future
-access without repeating password authentication. A hunt limited to
-password failures or successes may therefore miss the persistence
+SSH public-key authentication is legitimate administration
+functionality. An unauthorized key added to `authorized_keys`, however,
+may allow future access without repeating password authentication. A
+hunt limited to password authentication may miss this persistence
 mechanism.
-
-The investigation must correlate available evidence rather than treating
-any single event as conclusive.
 
 ## Threat-Hunting Hypothesis
 
@@ -82,26 +68,23 @@ and expected results are not findings.
 
 ## Attack Narrative
 
-The controlled lab scenario is designed to investigate the following
-sequence:
+The controlled lab scenario is designed to investigate this sequence:
 
-1.  SSH authentication is attempted from the designated Kali system to
-    `soc-linux`.
+1.  SSH authentication is attempted from Kali to `soc-linux`.
 2.  A lab session is established if authentication succeeds.
 3.  Controlled post-compromise discovery activity is performed.
 4.  The relevant SSH authorized-key file is identified.
-5.  A controlled test public key is added to the authorized-key file.
-6.  The file modification and related endpoint telemetry are
-    investigated.
-7.  A subsequent SSH connection is examined to determine whether
-    public-key authentication was used.
+5.  A controlled test public key is added to the file.
+6.  File modification and related endpoint telemetry are investigated.
+7.  A subsequent SSH connection is examined for public-key
+    authentication.
 8.  The SOC workflow proceeds through hunting, detection, investigation,
     remediation, and validation.
 
-This sequence describes the planned scenario. Each stage must be marked
-complete only when supported by evidence from the lab. Do not repeat an
-already completed action merely because its documentation is missing;
-first check existing screenshots and available telemetry.
+This is the planned scenario, not proof that each stage occurred. Mark a
+stage complete only when supported by evidence. Do not repeat completed
+activity solely because documentation is missing; first review existing
+screenshots and available telemetry.
 
 ## Attack Objectives
 
@@ -113,8 +96,7 @@ first check existing screenshots and available telemetry.
 -   Correlate the modification with user and process context where
     available.
 -   Determine whether subsequent public-key authentication occurred.
--   Evaluate the effectiveness and limitations of telemetry and
-    detection.
+-   Evaluate telemetry and detection limitations.
 -   Validate remediation and continued legitimate access.
 
 ## Scope and Safety
@@ -154,8 +136,7 @@ first check existing screenshots and available telemetry.
 ## Fixed Lab Architecture
 
 The following mapping is the established project baseline. Do not change
-host assignments or IP addresses unless the user explicitly confirms a
-change.
+host assignments or IP addresses unless explicitly confirmed.
 
   ------------------------------------------------------------------------
   Component         Hostname          IP Address         Role
@@ -178,38 +159,41 @@ The project time zone is `Asia/Kolkata` (IST, UTC+05:30). Preserve the
 original event timestamp and time-zone context when recording the
 timeline.
 
+### Lab Architecture Diagram
+
+``` mermaid
+flowchart LR
+    K["Kali Linux<br/>kiran<br/>192.168.1.10"] -->|Controlled SSH activity| L["Linux endpoint<br/>soc-linux<br/>192.168.1.16"]
+    L --> A["Native Auditd<br/>/var/log/audit/audit.log"]
+    L --> D["Elastic Defend<br/>Endpoint telemetry"]
+    A --> EA["Elastic Agent"]
+    D --> EA
+    EA --> E["Elastic SIEM<br/>elastic-siem<br/>192.168.1.11"]
+    E --> H["Kibana<br/>Hunting and detection"]
+```
+
 ### Telemetry Architecture
 
 #### Native Auditd
 
-``` text
-Linux activity
-      ↓
-Kernel audit subsystem
-      ↓
-Native auditd
-      ↓
-/var/log/audit/audit.log
-      ↓
-Elastic Agent logfile integration
-      ↓
-Elasticsearch
-      ↓
-Kibana investigation
+``` mermaid
+flowchart TD
+    A["Linux activity"] --> B["Kernel audit subsystem"]
+    B --> C["Native auditd"]
+    C --> D["/var/log/audit/audit.log"]
+    D --> E["Elastic Agent logfile integration"]
+    E --> F["Elasticsearch"]
+    F --> G["Kibana investigation"]
 ```
 
 #### Elastic Defend
 
-``` text
-Process / file / network activity
-      ↓
-Elastic Defend endpoint integration
-      ↓
-Elastic Agent
-      ↓
-Elasticsearch
-      ↓
-Kibana hunting and detection
+``` mermaid
+flowchart TD
+    A["Process, file and network activity"] --> B["Elastic Defend endpoint integration"]
+    B --> C["Elastic Agent"]
+    C --> D["Elasticsearch"]
+    D --> E["Kibana hunting and detection"]
 ```
 
 These are complementary telemetry paths. Validate each source and its
@@ -251,11 +235,26 @@ available fields independently before correlating events.
 
 Field availability depends on the integration and event type. Inspect
 representative event documents before relying on a field in a query. An
-empty query result alone does not prove that the activity did not occur.
+empty query result alone does not prove activity did not occur.
 
 ## Threat-Hunting Methodology
 
 The hunt follows an evidence-first sequence.
+
+### Threat-Hunting Flowchart
+
+``` mermaid
+flowchart TD
+    A["Define hypothesis"] --> B["Set investigation time window"]
+    B --> C["Search SSH authentication"]
+    C --> D["Investigate process activity"]
+    D --> E["Search authorized_keys file events"]
+    E --> F["Correlate host, account, process and source IP"]
+    F --> G["Check subsequent public-key authentication"]
+    G --> H["Validate detection and alerts"]
+    H --> I["Document confirmed findings and gaps"]
+    I --> J["Support response and recovery"]
+```
 
 ### Initial Triage
 
@@ -294,14 +293,14 @@ actually present in returned documents.
 
 For each saved KQL query, document:
 
-1.  The purpose of the query.
-2.  The data view or index pattern used.
-3.  The time range.
-4.  The exact query.
-5.  The actual result count.
+1.  Purpose of the query.
+2.  Data view or index pattern.
+3.  Time range.
+4.  Exact query.
+5.  Actual result count.
 6.  Relevant event fields and a representative event.
-7.  Any shard failures, timeouts, or other query errors.
-8.  The related screenshot or evidence reference.
+7.  Shard failures, timeouts, or other query errors.
+8.  Related screenshot or evidence reference.
 
 ## Detection Strategy
 
@@ -325,17 +324,32 @@ audit-configuration events where appropriate.
 -   Primary data source: Auditd telemetry
 
 This metadata describes the existing rule context; it does not by itself
-prove that the rule is currently enabled or that a particular activity
-generated an alert.
+prove the rule is currently enabled or that an activity generated an
+alert.
+
+### Detection Validation Flowchart
+
+``` mermaid
+flowchart TD
+    A["Controlled authorized-key activity"] --> B["Auditd and endpoint events"]
+    B --> C["Run detection rule"]
+    C --> D{"Relevant alert generated?"}
+    D -->|Yes| E["Inspect alert and related events"]
+    D -->|No| F["Check time range, fields, rule and telemetry"]
+    E --> G["Assess relevance and duplicate alerts"]
+    F --> H["Document result and limitation"]
+    G --> I["Record validated detection outcome"]
+    H --> I
+```
 
 ### Validation Requirements
 
--   Verify the current rule configuration.
--   Confirm the relevant event fields are available.
+-   Verify current rule configuration.
+-   Confirm relevant event fields are available.
 -   Validate against controlled activity and real telemetry.
--   Record alert count and alert details.
+-   Record alert count and details.
 -   Assess syscall-level alert duplication.
--   Document false-positive considerations and any justified tuning.
+-   Document false-positive considerations and justified tuning.
 -   Preserve the actual rule and analysis in the detection directory.
 
 ## Investigation Strategy
@@ -358,6 +372,18 @@ The final investigation should answer:
 Distinguish confirmed findings from hypotheses, missing telemetry, and
 inconclusive results.
 
+### Evidence Correlation Diagram
+
+``` mermaid
+flowchart LR
+    A["SSH authentication events"] --> T["Timeline correlation"]
+    B["Process execution events"] --> T
+    C["authorized_keys file events"] --> T
+    D["Network and source IP events"] --> T
+    E["Detection alerts"] --> T
+    T --> F["Evidence-backed assessment"]
+```
+
 ## MITRE ATT&CK Mapping
 
 The primary technique under investigation is:
@@ -368,12 +394,12 @@ This technique concerns abuse of SSH authorized keys to maintain access
 to an account.
 
 Additional techniques may be included only when the corresponding
-behavior is supported by observed evidence. The final report must
-distinguish between planned activity, observed behavior, and behavior
-that was investigated but not confirmed.
+behavior is supported by observed evidence. Distinguish planned
+activity, observed behavior, and behavior investigated but not
+confirmed.
 
 An SSH session alone does not prove persistence. The investigation needs
-evidence of the relevant key-file activity and its relationship to
+evidence of relevant key-file activity and its relationship to
 subsequent access.
 
 ## Cyber Kill Chain
@@ -405,10 +431,43 @@ claim every phase occurred.
                                       observed
   -----------------------------------------------------------------------
 
-The final mapping must reflect the evidence and may leave phases not
-applicable or unconfirmed.
+### Investigation Sequence Diagram
+
+``` mermaid
+sequenceDiagram
+    participant K as Kali
+    participant L as soc-linux
+    participant A as Auditd / Defend
+    participant E as Elastic SIEM
+    participant S as SOC Analyst
+    K->>L: Controlled SSH activity
+    L->>A: Generate endpoint telemetry
+    A->>E: Send collected events
+    S->>E: Search authentication and file activity
+    E-->>S: Return matching events and alerts
+    S->>S: Correlate timeline and assess evidence
+```
+
+This diagram describes the intended workflow, not proof that every event
+was observed.
 
 ## Incident Response
+
+### Incident Response Flowchart
+
+``` mermaid
+flowchart TD
+    A["Identify suspicious activity"] --> B["Preserve relevant evidence"]
+    B --> C["Assess scope and access"]
+    C --> D["Contain where appropriate"]
+    D --> E["Remove unauthorized test key"]
+    E --> F["Verify legitimate keys and access"]
+    F --> G["Validate monitoring and telemetry"]
+    G --> H{"Recovery checks pass?"}
+    H -->|Yes| I["Document recovery and close findings"]
+    H -->|No| J["Investigate remaining issue"]
+    J --> C
+```
 
 ### Identification
 
@@ -451,20 +510,14 @@ before documentation is finalized.
 
 ### Evidence Workflow
 
-``` text
-Execute
-   ↓
-Observe
-   ↓
-Capture
-   ↓
-Validate
-   ↓
-Sanitize
-   ↓
-Hash
-   ↓
-Document
+``` mermaid
+flowchart LR
+    A["Execute"] --> B["Observe"]
+    B --> C["Capture"]
+    C --> D["Validate"]
+    D --> E["Sanitize"]
+    E --> F["Hash"]
+    F --> G["Document"]
 ```
 
 ### Screenshot Categories
@@ -495,6 +548,19 @@ identifiers do not imply that an activity succeeded.
 Hash finalized evidence files and verify the hashes. Keep the hash
 manifest separate from the files it describes. Do not commit secrets or
 sensitive raw authentication material.
+
+## Obsidian Diagram Compatibility
+
+This README uses standard Markdown and Mermaid fenced code blocks, which
+Obsidian supports for flowcharts, sequence diagrams, and other Mermaid
+diagram types. Obsidian Canvas files, Excalidraw drawings, and embedded
+local images are separate formats; they are not generated by Mermaid
+blocks.
+
+If a diagram does not render, verify the fence is exactly
+```` ```mermaid ```` and the Mermaid syntax is valid for the installed
+Obsidian version. Architecture diagrams can describe the planned lab;
+event timelines and findings diagrams must reflect observed activity.
 
 ## Repository Structure
 
@@ -539,19 +605,14 @@ existing files before creating or replacing content.
 
 ## Diagram Plan
 
-The project may include the following diagrams:
+The README includes Mermaid architecture, telemetry, threat-hunting,
+detection, investigation correlation, sequence, incident-response, and
+evidence workflow diagrams. Supporting files may add an attack timeline,
+data-flow diagram, detection-to-investigation flowchart, or recovery
+workflow when these improve clarity.
 
-1.  Lab architecture and fixed host mapping.
-2.  Auditd and Elastic Defend telemetry pipelines.
-3.  Attack and investigation timeline based on confirmed events.
-4.  Detection and alert-validation workflow.
-5.  Incident-response lifecycle.
-6.  Evidence correlation across authentication, process, file, and
-    network telemetry.
-
-Architecture and planned-workflow diagrams can be created during project
-design. Timeline and findings diagrams must be based on observed events.
-Unconfirmed stages must remain explicitly unconfirmed.
+Do not create a diagram that implies an event occurred when it is only
+planned or hypothesized.
 
 ## Project Timeline
 
@@ -636,8 +697,8 @@ verified.
 ## Current Project Status
 
 This README defines the project scenario, scope, fixed lab architecture,
-planned investigation, and evidence requirements. It is not proof that
-every stage has been executed or passed.
+planned investigation, diagrams, and evidence requirements. It is not
+proof that every stage has been executed or passed.
 
 Existing screenshots and historical investigation notes must be reviewed
 against their actual contents and available telemetry before findings
