@@ -1,13 +1,13 @@
 # Project 03 — SSH Authorized-Key Backdoor Threat Hunt
 
-> **CatchMe | Linux Security Operations Center (SOC) Portfolio**
->
-> Investigate SSH password-based access, post-login discovery, SSH authorized-key persistence, and subsequent public-key re-entry using Linux audit telemetry and Elastic SIEM.
+**CatchMe | Linux Security Operations Center (SOC) Portfolio**
+
+A defensive lab case study investigating SSH authentication, post-access discovery, SSH authorized-key persistence, and possible public-key re-entry using Linux audit telemetry and Elastic SIEM.
 
 ![Project](https://img.shields.io/badge/Project-03-blue)
 ![Platform](https://img.shields.io/badge/Platform-Linux-informational)
 ![SIEM](https://img.shields.io/badge/SIEM-Elastic-005571)
-![ATT%26CK](https://img.shields.io/badge/MITRE%20ATT%26CK-T1098.004-red)
+![ATT&CK](https://img.shields.io/badge/MITRE%20ATT%26CK-T1098.004-red)
 
 ---
 
@@ -40,18 +40,18 @@
 
 This project investigates a Linux SSH persistence scenario in which an account is accessed over SSH, host and account discovery follows, a public key is added to the account's `authorized_keys` file, and a later SSH connection may use that key to re-enter the host.
 
-The work demonstrates a defensive SOC workflow: define a hunt hypothesis, validate the lab, identify available telemetry, investigate the activity, evaluate detection logic, map evidence to ATT&CK, and document response and recovery.
+The case study follows a defensive SOC workflow: establish a hypothesis, define expected telemetry, hunt and correlate events, assess detection logic, map behavior to ATT&CK, and document response and recovery.
 
-**Reporting rule:** a planned action, historical note, screenshot filename, or expected event is not by itself proof of a finding. Findings must be tied to reviewed evidence. This README labels historical details where the underlying raw events have not been independently reconciled in the project folder.
+**Evidence standard:** a planned action, historical note, screenshot filename, or expected event is not by itself proof of a finding. Specific conclusions must be tied to reviewed evidence. Historical details are labelled where underlying raw events have not been independently reconciled in this repository.
 
 ## 2. Project Objectives
 
-- Investigate SSH authentication attempts and outcomes from the designated lab attacker.
+- Investigate SSH authentication activity from the designated lab attacker.
 - Correlate initial access with post-login discovery.
 - Investigate changes to a Linux account's SSH `authorized_keys` file.
 - Correlate file activity with later SSH public-key authentication.
 - Use auditd and Elastic Defend telemetry where available.
-- Validate KQL detection and hunting logic against the intended data view and time range.
+- Validate KQL hunting and detection logic against the intended data view and time range.
 - Document investigation, evidence, containment, eradication, recovery, and validation.
 - Publish a sanitized, reproducible case study without exposing passwords or SSH private-key material.
 
@@ -67,92 +67,144 @@ The work demonstrates a defensive SOC workflow: define a hunt hypothesis, valida
 | Default gateway | — | `192.168.1.1` |
 | Lab subnet | — | `192.168.1.0/24` |
 
-**Important:** use `192.168.1.10` as the Kali lab address. Do not substitute the Kali Wi-Fi address `192.168.1.9` in this project's attack narrative or source-IP hunt queries. Lab boot order is Elastic SIEM, Linux endpoint, then Kali.
+**Addressing constraint:** use `192.168.1.10` as the Kali lab address. Do not substitute the Kali Wi-Fi address `192.168.1.9` in this project's attack narrative or source-IP queries. Lab boot order is Elastic SIEM, Linux endpoint, then Kali.
 
 ### Telemetry data flow
 
-```mermaid
-flowchart LR
-    A["Kali attacker<br/>kiran<br/>192.168.1.10"]
-    B["Linux endpoint<br/>soc-linux<br/>192.168.1.16"]
-    C["auditd<br/>/var/log/audit/audit.log"]
-    D["Elastic Agent<br/>auditd logfile + Defend"]
-    E["Elastic SIEM<br/>elastic-siem<br/>192.168.1.11"]
-    F["SOC analyst<br/>Discover / KQL / alerts"]
-    A -->|"SSH activity"| B
-    B --> C
-    B --> D
-    C --> D
-    D -->|"Endpoint and audit events"| E
-    E --> F
+```text
++-----------------------+       SSH activity       +-------------------------+
+| Kali attacker         | -----------------------> | Linux endpoint           |
+| kiran                 |                          | soc-linux                |
+| 192.168.1.10           |                          | 192.168.1.16              |
++-----------------------+                          +------------+------------+
+                                                               |
+                                             +-----------------+-----------------+
+                                             |                                   |
+                                             v                                   v
+                                  +----------------------+            +----------------------+
+                                  | Native auditd        |            | Elastic Defend       |
+                                  | /var/log/audit/      |            | process/file/network |
+                                  | audit.log            |            | telemetry            |
+                                  +----------+-----------+            +----------+-----------+
+                                             |                                   |
+                                             +-----------------+-----------------+
+                                                               |
+                                                               v
+                                                    +----------------------+
+                                                    | Elastic SIEM         |
+                                                    | elastic-siem          |
+                                                    | 192.168.1.11          |
+                                                    +----------+-----------+
+                                                               |
+                                                               v
+                                                    +----------------------+
+                                                    | SOC analyst          |
+                                                    | Discover / KQL /     |
+                                                    | detection alerts     |
+                                                    +----------------------+
 ```
 
 ## 4. Scope, Authorization and Safety
 
-This is a controlled defensive lab and portfolio exercise. Execute tests only on systems owned by the operator or explicitly authorized for testing.
+This is a controlled defensive lab and portfolio exercise. Run tests only on systems owned by the operator or explicitly authorized for testing.
 
-- Keep activity within the documented lab subnet and fixed hosts.
-- Do not publish passwords, private keys, tokens, or unredacted credential material.
-- Review screenshots and exports for sensitive data before committing or uploading them.
+- Keep activity within the documented lab and fixed hosts.
+- Never publish passwords, private keys, tokens, or unredacted authentication material.
+- Review screenshots and exports for sensitive data before committing or uploading.
 - Preserve relevant evidence before containment or cleanup.
-- Do not claim an action succeeded unless the result is visible in reviewed evidence.
-- Do not treat the example queries as authorization to run activity outside the lab.
+- Do not claim an action succeeded unless reviewed evidence supports the result.
+- The example queries are for defensive investigation and do not authorize activity against third-party systems.
 
 ## 5. Threat Scenario
 
-The scenario models an attacker who obtains access to a Linux account and attempts to preserve access by adding an SSH public key to the account's authorized-key file. A later successful public-key login can help connect the persistence action to re-entry.
+The scenario models an actor who obtains access to a Linux account and attempts to preserve access by adding an SSH public key to that account's `authorized_keys` file. A later successful public-key login may connect the persistence action to re-entry.
 
-```mermaid
-flowchart TD
-    A["SSH password attempts"] --> B["Initial SSH access"]
-    B --> C["Post-login discovery"]
-    C --> D["Modify authorized_keys"]
-    D --> E["Public-key re-entry"]
-    E --> F["SOC correlation and investigation"]
-    F --> G["Containment and recovery"]
-    style D fill:#fce8e6,stroke:#b3261e,color:#202124
-    style E fill:#fce8e6,stroke:#b3261e,color:#202124
+```text
+SSH password attempts
+        |
+        v
+Initial SSH access
+        |
+        v
+Post-login discovery
+        |
+        v
+Modify authorized_keys
+        |
+        v
+Public-key re-entry
+        |
+        v
+SOC correlation and investigation
+        |
+        v
+Containment, eradication, and recovery
 ```
 
-The chain is a scenario model. Mark each stage as observed only when supporting evidence has been reviewed.
+The sequence is a scenario model. Mark a stage as observed only when supporting evidence has been reviewed.
 
 ## 6. Threat-Hunting Hypothesis
 
-**Hypothesis:** if a Linux account's `authorized_keys` file is modified to establish persistence, auditd and/or endpoint file telemetry may record the file operation. A subsequent SSH public-key authentication from the same source and account, within a relevant time window, may support a persistence hypothesis.
+**Hypothesis:** if a Linux account's `authorized_keys` file is modified to establish persistence, auditd and/or endpoint file telemetry may record the operation. A subsequent SSH public-key authentication from a related source and account, within a relevant time window, may support a persistence hypothesis.
 
 ### Questions to answer
 
-1. Were there authentication failures before a successful SSH session?
+1. Were authentication failures observed before a successful SSH session?
 2. What source IP, target account, and authentication method are recorded?
 3. Is there evidence of a change to `/home/socadmin/.ssh/authorized_keys`?
-4. Which actor, process, syscall, file path, and timestamp are present in the raw event?
+4. Which actor, process, syscall, file path, and timestamp appear in the raw event?
 5. Does a later public-key login correlate by host, account, source, and time?
 6. Is there related process, sudo, or discovery activity?
-7. Are there competing benign explanations, missing telemetry, or field-mapping limitations?
+7. Are there benign explanations, missing telemetry, or field-mapping limitations?
 
 A query returning no results is not proof of absence. Check the time picker, selected data view, field availability, raw event JSON, and neighboring event types.
 
 ## 7. Initial Triage Model
 
-### First-pass triage sequence
-
-1. Confirm the host and time range.
+1. Confirm the target host and time range.
 2. Search SSH activity from `192.168.1.10`.
 3. Separate failed authentication, successful authentication, and session lifecycle events.
 4. Search auditd `PATH` and `SYSCALL` records for the authorized-key path.
-5. Inspect matching raw events and correlate record IDs or timestamps where available.
+5. Inspect raw events and correlate record identifiers or timestamps where available.
 6. Search for a later successful public-key login.
 7. Review endpoint process, file, network, and sudo activity.
-8. Record evidence references, confidence, alternative explanations, and gaps.
+8. Record query, time window, result count, evidence reference, confidence, and gaps.
 
-```mermaid
-flowchart TD
-    A["Scope host and time"] --> B["Search SSH activity"]
-    B --> C["Separate failure and success"]
-    C --> D["Inspect authorized_keys audit/file events"]
-    D --> E["Correlate public-key re-entry"]
-    E --> F["Review process and sudo context"]
-    F --> G["Document confidence and evidence gaps"]
+```text
++---------------------+
+| Scope host and time |
++----------+----------+
+           |
+           v
++---------------------+
+| Search SSH activity |
++----------+----------+
+           |
+           v
++------------------------------+
+| Separate failures and success|
++--------------+---------------+
+               |
+               v
++------------------------------+
+| Inspect authorized_keys      |
+| auditd / endpoint file events|
++--------------+---------------+
+               |
+               v
++------------------------------+
+| Correlate public-key re-entry|
++--------------+---------------+
+               |
+               v
++------------------------------+
+| Review process and sudo      |
++--------------+---------------+
+               |
+               v
++------------------------------+
+| Record evidence and gaps     |
++------------------------------+
 ```
 
 ## 8. Expected Attack Chain
@@ -161,53 +213,47 @@ flowchart TD
 |---|---|---|
 | Authentication attempts | SSH password attempts | Authentication failure events and source IP |
 | Initial access | Successful SSH login | Authentication success and session opening |
-| Discovery | User, host, process, network or session enumeration | Endpoint process or audit events, or captured session evidence |
+| Discovery | User, host, process, network, or session enumeration | Endpoint process/audit events or captured session evidence |
 | Persistence | Add or modify authorized SSH key | Auditd path/syscall records and/or endpoint file events |
 | Re-entry | Authenticate using public key | Successful SSH authentication with method `publickey` |
 | Post-re-entry activity | Commands or privilege use | Process, auditd, sudo, and session events |
-| Response | Remove unauthorized persistence and validate | Before/after evidence, file metadata, and successful telemetry checks |
+| Response | Remove unauthorized persistence and validate | Before/after evidence, file metadata, and telemetry checks |
 
-The table lists evidence to seek; it does not imply that every item has been independently verified.
+The table lists evidence to seek; it does not imply every item has been independently verified.
 
 ## 9. Expected Telemetry and Log Sources
 
 | Source | Investigation value | Caveat |
 |---|---|---|
-| OpenSSH / Linux authentication logs | Source, user, authentication result, method, and session lifecycle where parsed | Exact fields depend on integration and event type |
-| auditd | Syscall and path records for audited operations | A file operation may create several related audit records |
+| OpenSSH / Linux authentication logs | Source, user, authentication result, method, and session lifecycle where parsed | Exact fields depend on event type and integration |
+| auditd | Syscall and path records for audited operations | One file operation may produce multiple related audit records |
 | Elastic Defend process events | Process execution and command context | Normalized field availability varies |
 | Elastic Defend file events | File operations and file metadata | Confirm actual path and operation in raw event |
-| Elastic Defend network events | Endpoint network context | Not every SSH event will map to every network field |
-| Kibana Discover and alerts | Search, correlation, and detection review | Time range and data view must be correct |
+| Elastic Defend network events | Endpoint network context | Not every SSH event maps to every network field |
+| Kibana Discover and alerts | Search, correlation, and detection review | Confirm time range and data view |
 
-Known lab architecture: kernel audit → native `auditd` → `/var/log/audit/audit.log` → Elastic Agent logfile integration → Elasticsearch. Elastic Defend supplies endpoint process, file, and network event datasets. These are previously reported lab configuration details; recheck live health only if the current phase requires it.
+Recorded lab architecture: kernel audit → native `auditd` → `/var/log/audit/audit.log` → Elastic Agent logfile integration → Elasticsearch. Elastic Defend provides endpoint process, file, and network event datasets. Treat these as previously reported configuration details and recheck live health only when the current phase requires it.
 
 ## 10. Threat-Hunting Methodology
 
-Use a repeatable evidence-led method:
-
 1. **Scope:** fix host, time range, source, and account.
-2. **Discover:** find SSH events and determine what fields actually exist.
-3. **Correlate:** compare authentication, auditd, and endpoint event timelines.
+2. **Discover:** find SSH events and determine which fields exist.
+3. **Correlate:** compare authentication, auditd, and endpoint timelines.
 4. **Enrich:** inspect raw event JSON, actor, process, file path, syscall, outcome, and session context.
 5. **Test alternatives:** account for legitimate key administration, automation, and repeated syscall records.
 6. **Assess confidence:** distinguish direct observations from inference.
-7. **Preserve:** record query, time window, result count, event timestamp, and screenshot or export reference.
+7. **Preserve:** record query, time window, result count, event timestamp, and evidence reference.
 8. **Report:** state conclusion, limitations, and next action.
 
-```mermaid
-flowchart LR
-    A["Scope"] --> B["Discover"]
-    B --> C["Correlate"]
-    C --> D["Enrich"]
-    D --> E["Test alternatives"]
-    E --> F["Assess confidence"]
-    F --> G["Preserve and report"]
+```text
+Scope -> Discover -> Correlate -> Enrich
+  -> Test alternatives -> Assess confidence
+  -> Preserve evidence -> Report
 ```
 
 ## 11. KQL Investigation Strategy
 
-Run the queries in Kibana against the correct data view and time window. The queries are hunting starting points, not a guarantee that every field is populated. If a query returns no events, inspect the raw event and broaden carefully.
+Run queries in Kibana against the correct data view and time window. These are starting points, not a guarantee that every field is populated. If a query returns no events, inspect the raw event and broaden the query carefully.
 
 ### SSH activity from the Kali lab host
 
@@ -252,11 +298,11 @@ host.name:"soc-linux" AND
 (file.path:"/home/socadmin/.ssh/authorized_keys" OR message:"*authorized_keys*")
 ```
 
-Prefer structured auditd fields when present. A broad text query can be useful for exploration but should not replace raw-event review.
+Prefer structured auditd fields when present. A broad text query is an exploration fallback, not a replacement for raw-event review.
 
 ### Historical auditd window
 
-This time window is based on earlier notes for the October 3, 2026 exercise and uses IST offset `+05:30`. Apply it only when searching that historical period.
+This time window is based on earlier notes for the October 3, 2026 exercise and uses the IST offset `+05:30`. Apply it only when searching that historical period.
 
 ```kql
 host.name:"soc-linux" AND
@@ -299,20 +345,30 @@ event.action:(ran-command OR was-authorized OR started-session OR ended-session 
 
 ### Query workflow
 
-```mermaid
-flowchart TD
-    A["Choose data view and time"] --> B["Run broad SSH query"]
-    B --> C["Inspect actual field values"]
-    C --> D["Narrow by source, user, method"]
-    D --> E["Search authorized_keys activity"]
-    E --> F["Correlate events and preserve query"]
+```text
+Select data view and time range
+             |
+             v
+Run broad SSH query
+             |
+             v
+Inspect actual event fields
+             |
+             v
+Narrow by source, user, and method
+             |
+             v
+Search authorized_keys activity
+             |
+             v
+Correlate and preserve evidence
 ```
 
 ## 12. Detection Strategy
 
 ### Existing lab detection rule
 
-The following KQL is the rule definition recorded for the lab. Verify the live rule and corresponding alert evidence before claiming current end-to-end validation.
+The following KQL is the rule definition recorded for the lab. Verify the current rule and corresponding alert evidence before claiming current end-to-end validation.
 
 ```kql
 host.name:"soc-linux" AND
@@ -330,50 +386,56 @@ NOT event.action:"changed-audit-configuration"
 | ATT&CK mapping | T1098.004 — SSH Authorized Keys |
 | Query type | KQL |
 
-A single file operation can generate multiple syscall-level records and alerts. The lab previously reported five high-severity alerts from one controlled file operation. Treat this as a recorded validation observation pending review of the underlying alert records; do not equate alert count with incident count.
+The lab previously reported five high-severity alerts from one controlled file operation. Because a single file operation can generate multiple syscall-level records, review the underlying alert records and assess deduplication; do not equate alert count with incident count.
 
 ### Detection logic
 
-```mermaid
-flowchart TD
-    A["Auditd / endpoint event"] --> B{"Authorized-key activity?"}
-    B -->|No| C["Continue monitoring"]
-    B -->|Yes| D["Inspect raw records and alert context"]
-    D --> E["Correlate actor, path, source, and time"]
-    E --> F{"Related public-key login?"}
-    F -->|Yes| G["Escalate suspected persistence"]
-    F -->|No or unknown| H["Continue investigation; preserve uncertainty"]
+```text
+Auditd / endpoint event
+          |
+          v
+Authorized-key activity?
+   | No                | Yes
+   v                   v
+Continue monitoring  Inspect raw records
+                         |
+                         v
+                 Correlate actor, path,
+                 source, and timestamp
+                         |
+                         v
+                 Related public-key login?
+                    | Yes       | No/unknown
+                    v           v
+                Escalate     Continue hunt
 ```
-
-### Detection quality checks
-
-- Verify the target file path and audit key.
-- Check that the alert points to the expected host and event.
-- Correlate syscall records so one operation is not misreported as multiple incidents.
-- Test benign authorized-key administration to understand false-positive behavior.
-- Preserve the rule version, query, alert timestamp, and evidence reference.
 
 ## 13. Sigma and YARA Strategy
 
-The project tree includes a Sigma rule and YARA rule with accompanying analysis documents. Their presence is not proof that they are correct, portable, or validated.
+The project tree contains Sigma and YARA rule files with analysis documents. Their presence alone does not prove that the rules are correct, portable, or validated.
 
 ### Sigma
 
-Use Sigma to express the relevant event-based detection in a platform-neutral form where supported. Review log-source assumptions, field names, event selection, exclusions, and conversion behavior before claiming parity with the Elastic KQL rule.
+Review log-source assumptions, field names, event selection, exclusions, and conversion behavior. Compare the resulting detection behavior with the Elastic KQL rule and record actual test results.
 
 ### YARA
 
-YARA is primarily useful for identifying file content or byte patterns. A YARA rule alone is not a substitute for behavioral detection of an `authorized_keys` modification or correlation with SSH authentication. Document the rule's actual target and test results; do not claim that it detects this behavior unless a defined content-based indicator and validation support that claim.
+YARA is primarily intended to identify content or byte patterns. A YARA rule alone does not replace behavioral detection of an `authorized_keys` modification or correlation with SSH authentication. Document the rule's actual target and test results; do not claim behavioral detection without evidence.
 
-### Validation status
+### Files to review
 
-Before publication, inspect `04-detection/sigma/sigma-rule.yml`, `04-detection/sigma/sigma-analysis.md`, `04-detection/yara/yara-rule.yar`, and `04-detection/yara/yara-analysis.md`. Record test tools, sample inputs, results, limitations, and false positives. Do not mark these rules validated solely because the files exist.
+- `04-detection/sigma/sigma-rule.yml`
+- `04-detection/sigma/sigma-analysis.md`
+- `04-detection/yara/yara-rule.yar`
+- `04-detection/yara/yara-analysis.md`
+
+Record test tools, sample inputs, results, limitations, and false positives before marking either rule validated.
 
 ## 14. Investigation Strategy and Findings
 
 ### Correlation fields
 
-Use the fields actually present in each event. Useful correlation attributes may include:
+Use the fields present in the actual event. Potentially useful attributes include:
 
 - `host.name`
 - `@timestamp`
@@ -389,29 +451,29 @@ Use the fields actually present in each event. Useful correlation attributes may
 
 ### Historical details requiring reconciliation
 
-Earlier lab notes report the following for October 3, 2026. These are historical leads and must be checked against reviewed screenshots and available original event data before being treated as fully verified findings:
+Earlier lab notes report the following for October 3, 2026. Treat them as historical leads until checked against screenshots and available original event data:
 
-- The reported SSH source and target were `192.168.1.10` and `192.168.1.16`.
-- The account in the notes was `socadmin`.
-- The reported authorized-key file was `/home/socadmin/.ssh/authorized_keys`.
-- The notes report an entry-count change from one to two and a modification time of `2026-10-03 14:40:56 IST`.
-- The notes report public-key re-entry at `2026-10-03 14:45:53.827 IST`, with source `192.168.1.10`.
-- The reported attack sequence included password-based SSH access, host/account discovery, authorized-key persistence, and key-based re-entry.
+- Reported SSH source and target: `192.168.1.10` and `192.168.1.16`.
+- Account recorded in the notes: `socadmin`.
+- Reported path: `/home/socadmin/.ssh/authorized_keys`.
+- Notes report the entry count changing from one to two and a modification time of `2026-10-03 14:40:56 IST`.
+- Notes report public-key re-entry at `2026-10-03 14:45:53.827 IST`, from `192.168.1.10`.
+- The recorded sequence includes password-based SSH access, discovery, authorized-key persistence, and key-based re-entry.
 
-Do not publish passwords, private-key content, or full key lines. If original raw events cannot be recovered, retain the “historical notes” qualification and state the evidence limitation.
+Do not publish passwords, private-key content, or full key lines. If original raw events cannot be recovered, retain the historical qualifier and state the evidence limitation.
 
 ### Findings template
 
 For each finding, document:
 
-1. Finding ID and concise title.
+1. Finding ID and title.
 2. Hypothesis tested.
-3. Query and data view used.
+3. Query and data view.
 4. Time range and timezone.
 5. Observed event details and evidence reference.
 6. Interpretation and confidence.
 7. Alternative explanations and limitations.
-8. Recommended response or next investigation step.
+8. Recommended response or next investigative step.
 
 ## 15. MITRE ATT&CK Mapping
 
@@ -424,38 +486,56 @@ For each finding, document:
 | [T1057 — Process Discovery](https://attack.mitre.org/techniques/T1057/) | Process enumeration | Endpoint process or audit evidence |
 | [T1098.004 — SSH Authorized Keys](https://attack.mitre.org/techniques/T1098/004/) | SSH public-key persistence | Authorized-key file activity and supporting context |
 
-```mermaid
-flowchart TD
-    A["T1110<br/>Brute Force"] --> B["T1021.004<br/>SSH"]
-    B --> C["T1082 / T1033 / T1057<br/>Discovery"]
-    C --> D["T1098.004<br/>SSH Authorized Keys"]
-    D --> E["T1021.004<br/>Potential key-based re-entry"]
+```text
+T1110 — Brute Force
+          |
+          v
+T1021.004 — SSH
+          |
+          v
+T1082 / T1033 / T1057 — Discovery
+          |
+          v
+T1098.004 — SSH Authorized Keys
+          |
+          v
+T1021.004 — Potential key-based re-entry
 ```
 
-Technique mapping should reflect observed behavior, not simply the planned attack narrative.
+Technique mapping should reflect observed behavior, not only the planned scenario.
 
 ## 16. Cyber Kill Chain Mapping
 
-| Kill Chain stage | Scenario interpretation | Validation requirement |
+| Stage | Scenario interpretation | Validation requirement |
 |---|---|---|
-| Reconnaissance | Identify target and SSH service | Record only if supported by evidence |
-| Weaponization | Not necessarily applicable to this credential/persistence scenario | Do not force a mapping without evidence |
+| Reconnaissance | Identify target and SSH service | Include only if supported by evidence |
+| Weaponization | May not apply to this credential/persistence scenario | Do not force a mapping |
 | Delivery | SSH authentication traffic reaches the endpoint | SSH/network evidence |
 | Exploitation | Account access is obtained | Successful authentication/session evidence |
 | Installation | Authorized-key persistence is introduced | Audited or endpoint file change |
-| Command and Control | SSH can provide a remote interactive channel; do not infer additional C2 | Session evidence and observed behavior |
+| Command and Control | SSH may provide a remote interactive channel | Session evidence; do not infer additional C2 |
 | Actions on Objectives | Post-access discovery or privilege activity | Process/audit/sudo evidence |
 
-```mermaid
-flowchart LR
-    A["Reconnaissance<br/>(if observed)"] --> B["Delivery: SSH"]
-    B --> C["Access established"]
-    C --> D["Installation: authorized key"]
-    D --> E["Remote re-entry"]
-    E --> F["Post-access activity"]
+```text
+Reconnaissance (if observed)
+             |
+             v
+Delivery: SSH
+             |
+             v
+Access established
+             |
+             v
+Installation: authorized key
+             |
+             v
+Remote re-entry
+             |
+             v
+Post-access activity
 ```
 
-The Cyber Kill Chain is a conceptual lens. Not every stage is necessarily present or independently observable in this exercise.
+The Cyber Kill Chain is a conceptual lens. Not every stage is necessarily present or independently observable.
 
 ## 17. Incident Response Strategy
 
@@ -476,8 +556,8 @@ The Cyber Kill Chain is a conceptual lens. Not every stage is necessarily presen
 
 ### Eradication and recovery
 
-- Preserve the current authorized-key file and relevant metadata for evidence.
-- Remove only the confirmed unauthorized key; do not indiscriminately replace the file.
+- Preserve the current authorized-key file and relevant metadata.
+- Remove only the confirmed unauthorized key.
 - Review SSH configuration, account access, and other plausible persistence paths.
 - Rotate exposed credentials where warranted.
 - Verify ownership and permissions of the home directory, `.ssh` directory, and `authorized_keys`.
@@ -488,26 +568,35 @@ The Cyber Kill Chain is a conceptual lens. Not every stage is necessarily presen
 - Re-query the relevant time window and confirm the unauthorized persistence artifact is absent.
 - Confirm auditd and endpoint telemetry continue to arrive.
 - Use only approved controlled tests.
-- Record evidence and actual results; do not claim successful recovery until verified.
+- Record actual results; do not claim successful recovery until verified.
 
-```mermaid
-flowchart TD
-    A["Triage and scope"] --> B["Preserve evidence"]
-    B --> C["Contain suspicious access"]
-    C --> D["Remove confirmed unauthorized key"]
-    D --> E["Review credentials and other persistence"]
-    E --> F["Validate legitimate access and telemetry"]
-    F --> G{"Validation passed?"}
-    G -->|Yes| H["Document recovery and lessons"]
-    G -->|No| I["Continue remediation"]
-    I --> F
+```text
+Triage and scope
+       |
+       v
+Preserve evidence
+       |
+       v
+Contain suspicious access
+       |
+       v
+Remove confirmed unauthorized key
+       |
+       v
+Review credentials and other persistence
+       |
+       v
+Validate legitimate access and telemetry
+       |
+       v
+Document recovery or continue remediation
 ```
 
 ## 18. Evidence and Screenshot Strategy
 
 ### Existing screenshot inventory
 
-The project currently contains screenshots in these directories:
+Screenshots are present in:
 
 - `09-Screenshots/Attack/`
 - `09-Screenshots/Telemetry/`
@@ -530,58 +619,74 @@ Telemetry screenshot filenames:
 - `P03-TEL-04-authorized-key-persistence.png`
 - `P03-TEL-05-key-based-reentry.png`
 
-The Hunting directory contains screenshots whose filenames describe SSH timeline, authentication correlation/methods, public-key re-entry, authorized-key activity, auditd persistence telemetry, SSH session lifecycle, and sudo activity.
+The Hunting folder contains screenshots whose filenames refer to the SSH timeline, authentication correlation/methods, public-key re-entry, authorized-key activity, auditd persistence telemetry, SSH session lifecycle, and sudo activity.
 
-**Evidence limitation:** filenames identify intended topics, not confirmed content. Inspect each screenshot before linking it to a conclusion. Correlate screenshots with original events where available.
+**Evidence limitation:** filenames describe intended topics, not verified contents. Inspect each image before using it to support a conclusion. Correlate screenshots with original events where available.
 
 ### Evidence handling
 
-- Keep original evidence unchanged.
+- Preserve original evidence unchanged.
 - Store sanitized copies separately from raw evidence.
 - Redact credentials, tokens, private keys, personal information, and unrelated host details.
-- Record acquisition context, timestamp, timezone, query, and relevant event identifiers.
-- Generate SHA-256 hashes for files selected for preservation and publication.
-- Do not publish raw logs or telemetry exports without a sensitivity review.
+- Record acquisition context, timestamp, timezone, query, and event identifiers.
+- Generate SHA-256 hashes for evidence selected for preservation and publication.
+- Do not publish raw logs or telemetry exports without sensitivity review.
 
 ## 19. Diagrams and Attack Timeline
 
-### Attack timeline — historical notes
+### Historical timeline — October 3, 2026
 
-The following sequence comes from earlier notes and should be checked against the screenshots and available event data:
+Earlier notes record this sequence. Reconcile it with screenshots and original event data before treating it as a fully verified timeline.
 
 | Approximate time (IST) | Reported activity | Evidence status |
 |---|---|---|
-| Before 14:40, Oct 3, 2026 | SSH password attempts and initial access | Historical note; inspect attack/telemetry screenshots |
-| 14:40:56 | `authorized_keys` modification time recorded in notes | Historical note; corroborate file/audit evidence |
-| 14:45:53.827 | Public-key SSH re-entry recorded in notes | Historical note; corroborate authentication event |
-| After re-entry | Related session, auditd, or sudo activity described in hunting notes | Inspect individual screenshots and raw events |
-
-Do not interpret missing timestamps as proof that an event did not occur. Preserve the original timezone when correlating event times.
+| Before 14:40 | SSH password attempts and initial access | Historical note; review attack/telemetry evidence |
+| 14:40:56 | `authorized_keys` modification time | Historical note; corroborate file/audit evidence |
+| 14:45:53.827 | Public-key SSH re-entry | Historical note; corroborate authentication event |
+| After re-entry | Session, auditd, or sudo activity | Review individual hunting screenshots and raw events |
 
 ### End-to-end SOC workflow
 
-```mermaid
-flowchart TD
-    A["Environment and baseline"] --> B["Controlled attack"]
-    B --> C["Collect auditd and endpoint telemetry"]
-    C --> D["Threat hunt and correlate"]
-    D --> E["Evaluate detection"]
-    E --> F["Investigate and map ATT&CK"]
-    F --> G["Contain and eradicate"]
-    G --> H["Recover and validate"]
-    H --> I["Sanitize evidence, hash, QA"]
-    I --> J["Publish verified report"]
+```text
+Environment and baseline
+          |
+          v
+Controlled attack
+          |
+          v
+Collect auditd and endpoint telemetry
+          |
+          v
+Threat hunt and correlate
+          |
+          v
+Evaluate detection
+          |
+          v
+Investigate and map ATT&CK
+          |
+          v
+Contain and eradicate
+          |
+          v
+Recover and validate
+          |
+          v
+Sanitize evidence, hash, and QA
+          |
+          v
+Publish verified report
 ```
 
 ### Evidence-to-claim rule
 
-Every published claim about a specific attack event should point to at least one reviewed screenshot, event reference, or sanitized artifact. Keep expected behavior, historical notes, current observations, and conclusions clearly separated.
+Every published claim about a specific attack event should reference at least one reviewed screenshot, event record, or sanitized artifact. Keep expected behavior, historical notes, current observations, and conclusions clearly separated.
 
 ## 20. Success Criteria, Validation and Project Status
 
 ### Success criteria
 
-- [ ] Lab host mapping and time zone are recorded correctly.
+- [ ] Lab host mapping and timezone are recorded correctly.
 - [ ] Attack steps are supported by reviewed evidence.
 - [ ] SSH authentication events are correlated by source, account, and time.
 - [ ] Authorized-key file activity is supported by auditd and/or endpoint evidence.
@@ -590,28 +695,28 @@ Every published claim about a specific attack event should point to at least one
 - [ ] Duplicate syscall-level alerts are assessed without equating alert count to incident count.
 - [ ] Investigation conclusions state evidence, confidence, and limitations.
 - [ ] ATT&CK and Kill Chain mappings are evidence-based.
-- [ ] Response and recovery are reported as complete only after validation.
+- [ ] Response and recovery are reported complete only after validation.
 - [ ] Screenshots and files are sanitized.
 - [ ] Evidence hashes are generated and checked.
-- [ ] Links, Markdown, and Mermaid diagrams are tested in the intended GitHub repository.
+- [ ] Links, Markdown, and diagrams are tested in the target GitHub repository.
 
 ### Project status
 
-This README is a consolidated project guide. It does not independently certify that every phase is complete. The folder contains attack, telemetry, and hunting screenshots, and earlier notes report attack activity on October 3, 2026; those artifacts must be reviewed and reconciled before making stronger claims.
+This README is a consolidated project guide; it does not certify that every phase is complete. The project directory contains attack, telemetry, and hunting screenshots, and earlier notes report activity on October 3, 2026. Review and reconcile these artifacts before making stronger claims.
 
 | Workstream | Current reporting position |
 |---|---|
-| README | Rebuilt with 20 numbered sections and Mermaid diagrams |
+| README | Rebuilt with 20 numbered sections and GitHub-safe text diagrams |
 | Lab architecture | Fixed mapping documented |
-| Attack | Screenshots exist; verify their contents and reconcile historical notes |
+| Attack | Screenshots exist; verify contents and reconcile historical notes |
 | Telemetry | Screenshots exist; correlate with actual events where available |
-| Threat hunting | Screenshots exist; link findings to query results and evidence |
+| Threat hunting | Screenshots exist; tie findings to query results and evidence |
 | Detection | Rule definition recorded; verify current rule and alert evidence |
 | Sigma/YARA | Rule files exist; validation and portability must be documented |
 | Investigation | Confirm completion only after findings and timeline are evidence-linked |
-| Incident response | Plans documented; report actions as completed only when demonstrated |
-| Evidence integrity | Hashing and publication sanitization remain checklist items until performed |
-| Git/GitHub | Paused; this README does not imply repository initialization or publication |
+| Incident response | Plans documented; claim completion only when demonstrated |
+| Evidence integrity | Hashing and publication sanitization remain pending until performed |
+| Git/GitHub | Paused; no repository initialization or publication is implied |
 
 ---
 
@@ -628,4 +733,4 @@ This README is a consolidated project guide. It does not independently certify t
 
 ## Disclaimer
 
-This is a controlled defensive lab and portfolio project. The hostnames and IP addresses are the fixed lab mapping, not public targets. Perform testing only on systems you own or are explicitly authorized to assess. Never include passwords, private SSH keys, tokens, or other sensitive authentication material in public evidence.
+This is a controlled defensive lab and portfolio project. Hostnames and IP addresses above are the fixed lab mapping, not public targets. Test only systems you own or are explicitly authorized to assess. Never include passwords, private SSH keys, tokens, or other sensitive authentication material in public evidence.
