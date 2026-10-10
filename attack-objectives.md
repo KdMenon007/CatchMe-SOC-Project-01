@@ -97,3 +97,7 @@ The attack phase is successful only when the controlled key-persistence scenario
 - MITRE ATT&CK mapping,
 - incident-response documentation,
 - evidence preservation and hashing.
+
+## Evidence and Status Note
+
+This document records pre-attack readiness and baseline observations only. Expected telemetry describes what the investigation will look for; it is not proof that an event was generated, ingested, detected, or investigated. Record later findings only when supported by actual endpoint/SIEM evidence. Do not include passwords, private keys, tokens, or unsanitized sensitive logs.
